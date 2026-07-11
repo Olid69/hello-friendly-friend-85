@@ -38,6 +38,8 @@ export function PlayerBar() {
     volume,
     shuffle,
     repeat,
+    isLoading,
+    error,
     togglePlay,
     next,
     prev,
@@ -84,7 +86,7 @@ export function PlayerBar() {
               )}
             </div>
             <p className="truncate text-xs text-muted-foreground">
-              {current?.artist ?? "Search and play a track"}
+              {error ?? (isLoading ? "Loading stream..." : current?.artist ?? "Search and play a track")}
             </p>
           </div>
           <button
@@ -121,7 +123,7 @@ export function PlayerBar() {
               className="flex h-9 w-9 items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-105 disabled:opacity-40"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
-              {isPlaying ? (
+              {isPlaying || isLoading ? (
                 <Pause className="h-4 w-4 fill-current" />
               ) : (
                 <Play className="h-4 w-4 fill-current" />
