@@ -9,10 +9,15 @@ import {
   Volume2,
   Heart,
   Music2,
+  Mic2,
+  ListMusic,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { usePlayer } from "@/lib/player-context";
+import { useLiked } from "@/lib/library-store";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+
 
 function fmt(sec: number) {
   if (!Number.isFinite(sec) || sec < 0) return "0:00";
@@ -89,16 +94,12 @@ export function PlayerBar() {
               {error ?? (isLoading ? "Loading stream..." : current?.artist ?? "Search and play a track")}
             </p>
           </div>
-          <button
-            className="hidden md:inline-flex text-muted-foreground hover:text-primary"
-            aria-label="Like"
-          >
-            <Heart className="h-4 w-4" />
-          </button>
+          <PlayerActions />
         </div>
 
         {/* Controls */}
         <div className="flex flex-1 flex-col items-center gap-1">
+
           <div className="flex items-center gap-2 md:gap-4">
             <button
               onClick={toggleShuffle}
@@ -176,3 +177,38 @@ export function PlayerBar() {
     </footer>
   );
 }
+
+function PlayerActions() {
+  const { current } = usePlayer();
+  const { isLiked, toggleLike } = useLiked();
+  if (!current) return null;
+  const liked = isLiked(current.id);
+  return (
+    <div className="hidden md:flex items-center gap-2">
+      <button
+        onClick={() => toggleLike(current)}
+        className={cn(
+          liked ? "text-primary" : "text-muted-foreground hover:text-foreground",
+        )}
+        aria-label="Like"
+      >
+        <Heart className={cn("h-4 w-4", liked && "fill-current")} />
+      </button>
+      <Link
+        to="/lyrics"
+        className="text-muted-foreground hover:text-foreground"
+        aria-label="Lyrics"
+      >
+        <Mic2 className="h-4 w-4" />
+      </Link>
+      <Link
+        to="/queue"
+        className="text-muted-foreground hover:text-foreground"
+        aria-label="Queue"
+      >
+        <ListMusic className="h-4 w-4" />
+      </Link>
+    </div>
+  );
+}
+
