@@ -192,3 +192,52 @@ export async function resolvePipedStream(
   });
   return muxed[0]?.url ?? null;
 }
+
+// ---------- Deezer (30s previews via public API) ----------
+export async function searchDeezer(
+  query: string,
+  limit = 20,
+): Promise<UnifiedTrack[]> {
+  try {
+    const url = `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=${limit}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { data?: any[] };
+    return (json.data ?? [])
+      .filter((t) => t.preview)
+      .map((t) => ({
+        id: `deezer:${t.id}`,
+        source: "deezer" as const,
+        title: t.title ?? "Unknown",
+        artist: t.artist?.name ?? "Unknown Artist",
+        artwork: t.album?.cover_big ?? t.album?.cover_medium ?? "",
+        duration: 30,
+        streamUrl: t.preview,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export async function chartDeezer(limit = 12): Promise<UnifiedTrack[]> {
+  try {
+    const res = await fetch(`https://api.deezer.com/chart/0/tracks?limit=${limit}`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { data?: any[] };
+    return (json.data ?? [])
+      .filter((t) => t.preview)
+      .map((t) => ({
+        id: `deezer:${t.id}`,
+        source: "deezer" as const,
+        title: t.title ?? "Unknown",
+        artist: t.artist?.name ?? "Unknown Artist",
+        artwork: t.album?.cover_big ?? t.album?.cover_medium ?? "",
+        duration: 30,
+        streamUrl: t.preview,
+      }));
+  } catch {
+    return [];
+  }
+}
