@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Heart, ListMusic, Clock, Download } from "lucide-react";
+import { Heart, ListMusic, Clock, Download, Mic2, Sliders } from "lucide-react";
 
 export const Route = createFileRoute("/library")({
   head: () => ({ meta: [{ title: "Library — Sonora" }] }),
@@ -8,8 +8,12 @@ export const Route = createFileRoute("/library")({
 
 const cards = [
   { to: "/liked", label: "Liked Songs", icon: Heart, desc: "All your favorites" },
+  { to: "/playlists", label: "Playlists", icon: ListMusic, desc: "Your custom playlists" },
   { to: "/queue", label: "Queue", icon: ListMusic, desc: "What's playing next" },
   { to: "/recent", label: "Recently Played", icon: Clock, desc: "Your listening history" },
+  { to: "/downloads", label: "Downloads", icon: Download, desc: "Offline tracks" },
+  { to: "/lyrics", label: "Lyrics", icon: Mic2, desc: "Synced via LRCLIB" },
+  { to: "/equalizer", label: "Equalizer", icon: Sliders, desc: "6-band audio EQ" },
 ] as const;
 
 function LibraryPage() {
@@ -35,15 +39,6 @@ function LibraryPage() {
             </Link>
           );
         })}
-        <div className="flex items-center gap-4 rounded-lg border border-dashed border-border p-4 opacity-60">
-          <div className="flex h-14 w-14 items-center justify-center rounded-md bg-muted">
-            <Download className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="font-semibold">Offline Downloads</p>
-            <p className="text-xs text-muted-foreground">Coming in Phase 7</p>
-          </div>
-        </div>
       </div>
     </div>
   );

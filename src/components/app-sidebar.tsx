@@ -8,6 +8,9 @@ import {
   Clock,
   Settings,
   Music2,
+  Download,
+  Sliders,
+  Mic2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,15 +22,22 @@ const navItems = [
 
 const libraryItems = [
   { to: "/liked", label: "Liked Songs", icon: Heart },
+  { to: "/playlists", label: "Playlists", icon: ListMusic },
   { to: "/queue", label: "Queue", icon: ListMusic },
   { to: "/recent", label: "Recently Played", icon: Clock },
+  { to: "/downloads", label: "Downloads", icon: Download },
+];
+
+const toolItems = [
+  { to: "/lyrics", label: "Lyrics", icon: Mic2 },
+  { to: "/equalizer", label: "Equalizer", icon: Sliders },
 ];
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
-    <aside className="hidden md:flex w-64 flex-col bg-sidebar border-r border-sidebar-border">
+    <aside className="hidden md:flex w-64 flex-col bg-sidebar border-r border-sidebar-border overflow-y-auto">
       <div className="flex items-center gap-2 px-6 py-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
           <Music2 className="h-5 w-5 text-primary-foreground" />
@@ -62,6 +72,31 @@ export function AppSidebar() {
       </div>
       <nav className="mt-2 flex flex-col gap-1 px-3">
         {libraryItems.map((item) => {
+          const Icon = item.icon;
+          const active = pathname === item.to;
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                active
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/60",
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="mt-6 px-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Tools
+      </div>
+      <nav className="mt-2 flex flex-col gap-1 px-3">
+        {toolItems.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.to;
           return (
