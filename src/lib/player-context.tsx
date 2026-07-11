@@ -7,6 +7,9 @@ import {
   type ReactNode,
   type SyntheticEvent,
 } from "react";
+import { attachEqualizer } from "./equalizer";
+import { getDownloadBlobUrl } from "./downloads-store";
+
 
 export type TrackSource = "youtube" | "jamendo" | "audius" | "fma" | "deezer";
 
@@ -186,6 +189,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!current) return;
     let cancelled = false;
+
+    // Track recent plays (persist to localStorage).
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem("sonora.recent");
+        const prev = raw ? (JSON.parse(raw) as UnifiedTrack[]) : [];
+        const next = [current, ...prev.filter((t) => t.id !== current.id)].slice(0, 50);
+        window.localStorage.setItem("sonora.recent", JSON.stringify(next));
+        window.dispatchEvent(new CustomEvent("sonora:store", { detail: "sonora.recent" }));
+      } catch {}
+    }
+
     const load = async () => {
       setIsLoading(true);
       setError(null);
@@ -194,6 +209,32 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setDuration(current.duration || 0);
       resetMedia(audioRef.current);
       resetMedia(videoRef.current);
+
+      // Try local download first for any source.
+      let localUrl: string | null = null;
+      try {
+        localUrl = await getDownloadBlobUrl(current.id);
+      } catch {}
+      if (cancelled) return;
+
+      if (localUrl) {
+        youtubePlayerRef.current?.stopVideo?.();
+        const media = audioRef.current;
+        if (!media) return;
+        media.src = localUrl;
+        try {
+          await media.play();
+          if (!cancelled) {
+            setIsPlaying(true);
+            setError(null);
+          }
+        } catch {
+          if (!cancelled) setError("Playback failed.");
+        } finally {
+          if (!cancelled) setIsLoading(false);
+        }
+        return;
+      }
 
       if (current.source === "youtube") {
         const videoId = current.id.replace(/^youtube:/, "");
@@ -207,7 +248,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const media = audioRef.current;
       if (!media) return;
 
-      let url = current.streamUrl;
+      const url = current.streamUrl;
       if (cancelled) return;
       if (!url) {
         setIsLoading(false);
@@ -236,6 +277,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [current, playRequestId]);
+
+  // Attach equalizer once media elements are mounted.
+  useEffect(() => {
+    if (audioRef.current) attachEqualizer(audioRef.current);
+    if (videoRef.current) attachEqualizer(videoRef.current);
+  }, []);
+
+
 
   const playTrack = (track: UnifiedTrack, newQueue?: UnifiedTrack[]) => {
     if (newQueue) setQueue(newQueue);

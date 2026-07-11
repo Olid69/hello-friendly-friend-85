@@ -13,9 +13,14 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as RecentRouteImport } from './routes/recent'
 import { Route as QueueRouteImport } from './routes/queue'
+import { Route as PlaylistsRouteImport } from './routes/playlists'
+import { Route as LyricsRouteImport } from './routes/lyrics'
 import { Route as LikedRouteImport } from './routes/liked'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as EqualizerRouteImport } from './routes/equalizer'
+import { Route as DownloadsRouteImport } from './routes/downloads'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PlaylistsIdRouteImport } from './routes/playlists.$id'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -37,6 +42,16 @@ const QueueRoute = QueueRouteImport.update({
   path: '/queue',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlaylistsRoute = PlaylistsRouteImport.update({
+  id: '/playlists',
+  path: '/playlists',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LyricsRoute = LyricsRouteImport.update({
+  id: '/lyrics',
+  path: '/lyrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LikedRoute = LikedRouteImport.update({
   id: '/liked',
   path: '/liked',
@@ -47,74 +62,123 @@ const LibraryRoute = LibraryRouteImport.update({
   path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EqualizerRoute = EqualizerRouteImport.update({
+  id: '/equalizer',
+  path: '/equalizer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DownloadsRoute = DownloadsRouteImport.update({
+  id: '/downloads',
+  path: '/downloads',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlaylistsIdRoute = PlaylistsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => PlaylistsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/downloads': typeof DownloadsRoute
+  '/equalizer': typeof EqualizerRoute
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
+  '/lyrics': typeof LyricsRoute
+  '/playlists': typeof PlaylistsRouteWithChildren
   '/queue': typeof QueueRoute
   '/recent': typeof RecentRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/playlists/$id': typeof PlaylistsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/downloads': typeof DownloadsRoute
+  '/equalizer': typeof EqualizerRoute
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
+  '/lyrics': typeof LyricsRoute
+  '/playlists': typeof PlaylistsRouteWithChildren
   '/queue': typeof QueueRoute
   '/recent': typeof RecentRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/playlists/$id': typeof PlaylistsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/downloads': typeof DownloadsRoute
+  '/equalizer': typeof EqualizerRoute
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
+  '/lyrics': typeof LyricsRoute
+  '/playlists': typeof PlaylistsRouteWithChildren
   '/queue': typeof QueueRoute
   '/recent': typeof RecentRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/playlists/$id': typeof PlaylistsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/downloads'
+    | '/equalizer'
     | '/library'
     | '/liked'
+    | '/lyrics'
+    | '/playlists'
     | '/queue'
     | '/recent'
     | '/search'
     | '/settings'
+    | '/playlists/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/downloads'
+    | '/equalizer'
     | '/library'
     | '/liked'
+    | '/lyrics'
+    | '/playlists'
     | '/queue'
     | '/recent'
     | '/search'
     | '/settings'
+    | '/playlists/$id'
   id:
     | '__root__'
     | '/'
+    | '/downloads'
+    | '/equalizer'
     | '/library'
     | '/liked'
+    | '/lyrics'
+    | '/playlists'
     | '/queue'
     | '/recent'
     | '/search'
     | '/settings'
+    | '/playlists/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DownloadsRoute: typeof DownloadsRoute
+  EqualizerRoute: typeof EqualizerRoute
   LibraryRoute: typeof LibraryRoute
   LikedRoute: typeof LikedRoute
+  LyricsRoute: typeof LyricsRoute
+  PlaylistsRoute: typeof PlaylistsRouteWithChildren
   QueueRoute: typeof QueueRoute
   RecentRoute: typeof RecentRoute
   SearchRoute: typeof SearchRoute
@@ -151,6 +215,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QueueRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/playlists': {
+      id: '/playlists'
+      path: '/playlists'
+      fullPath: '/playlists'
+      preLoaderRoute: typeof PlaylistsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lyrics': {
+      id: '/lyrics'
+      path: '/lyrics'
+      fullPath: '/lyrics'
+      preLoaderRoute: typeof LyricsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/liked': {
       id: '/liked'
       path: '/liked'
@@ -165,6 +243,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/equalizer': {
+      id: '/equalizer'
+      path: '/equalizer'
+      fullPath: '/equalizer'
+      preLoaderRoute: typeof EqualizerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/downloads': {
+      id: '/downloads'
+      path: '/downloads'
+      fullPath: '/downloads'
+      preLoaderRoute: typeof DownloadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -172,13 +264,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/playlists/$id': {
+      id: '/playlists/$id'
+      path: '/$id'
+      fullPath: '/playlists/$id'
+      preLoaderRoute: typeof PlaylistsIdRouteImport
+      parentRoute: typeof PlaylistsRoute
+    }
   }
 }
 
+interface PlaylistsRouteChildren {
+  PlaylistsIdRoute: typeof PlaylistsIdRoute
+}
+
+const PlaylistsRouteChildren: PlaylistsRouteChildren = {
+  PlaylistsIdRoute: PlaylistsIdRoute,
+}
+
+const PlaylistsRouteWithChildren = PlaylistsRoute._addFileChildren(
+  PlaylistsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DownloadsRoute: DownloadsRoute,
+  EqualizerRoute: EqualizerRoute,
   LibraryRoute: LibraryRoute,
   LikedRoute: LikedRoute,
+  LyricsRoute: LyricsRoute,
+  PlaylistsRoute: PlaylistsRouteWithChildren,
   QueueRoute: QueueRoute,
   RecentRoute: RecentRoute,
   SearchRoute: SearchRoute,
@@ -187,13 +302,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

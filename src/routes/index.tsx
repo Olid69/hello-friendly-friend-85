@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TrendingUp, Radio, Loader2 } from "lucide-react";
+import { TrendingUp, Radio, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { homeFeed } from "@/lib/music-sources.functions";
 import { TrackGrid } from "@/components/track-card";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -69,8 +70,17 @@ function HomePage() {
               </div>
               <TrackGrid tracks={data.audius} />
             </section>
+
+            <section className="mt-10">
+              <div className="mb-4 flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-bold">Deezer Charts (previews)</h2>
+              </div>
+              <TrackGrid tracks={data.deezer} />
+            </section>
           </>
         )}
+
       </div>
     </div>
   );
