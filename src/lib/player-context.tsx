@@ -181,6 +181,28 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const cycleRepeat = () =>
     setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off"));
 
+  const mediaHandlers = {
+    onTimeUpdate: (e: React.SyntheticEvent<HTMLMediaElement>) =>
+      setProgress(e.currentTarget.currentTime),
+    onLoadedMetadata: (e: React.SyntheticEvent<HTMLMediaElement>) =>
+      setDuration(e.currentTarget.duration),
+    onCanPlay: () => setIsLoading(false),
+    onError: () => {
+      setIsLoading(false);
+      setIsPlaying(false);
+      setError("Playback failed. Try another source or track.");
+    },
+    onEnded: () => {
+      const media = getActiveMedia();
+      if (repeat === "one" && media) {
+        media.currentTime = 0;
+        media.play().catch(() => {});
+      } else {
+        next();
+      }
+    },
+  };
+
   return (
     <PlayerContext.Provider
       value={{
