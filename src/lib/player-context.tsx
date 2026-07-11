@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type SyntheticEvent,
 } from "react";
 import { resolveYoutubeStream } from "./music-sources.functions";
 
@@ -182,9 +183,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off"));
 
   const mediaHandlers = {
-    onTimeUpdate: (e: React.SyntheticEvent<HTMLMediaElement>) =>
+    onTimeUpdate: (e: SyntheticEvent<HTMLMediaElement>) =>
       setProgress(e.currentTarget.currentTime),
-    onLoadedMetadata: (e: React.SyntheticEvent<HTMLMediaElement>) =>
+    onLoadedMetadata: (e: SyntheticEvent<HTMLMediaElement>) =>
       setDuration(e.currentTarget.duration),
     onCanPlay: () => setIsLoading(false),
     onError: () => {
