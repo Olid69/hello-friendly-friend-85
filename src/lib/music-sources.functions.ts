@@ -104,8 +104,9 @@ async function popularJamendo(limit = 20): Promise<UnifiedTrack[]> {
 
 // ---------- Piped (YouTube) ----------
 const PIPED_INSTANCES = [
+  "https://api.piped.private.coffee",
+  "https://pipedapi.orangenet.cc",
   "https://pipedapi.kavin.rocks",
-  "https://pipedapi.adminforge.de",
   "https://pipedapi.leptons.xyz",
   "https://pipedapi.reallyaweso.me",
 ];
