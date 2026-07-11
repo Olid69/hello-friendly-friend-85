@@ -1,16 +1,41 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Search as SearchIcon } from "lucide-react";
-import { useState } from "react";
+import { Search as SearchIcon, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { unifiedSearch } from "@/lib/music-sources.functions";
+import { TrackGrid } from "@/components/track-card";
 
 export const Route = createFileRoute("/search")({
   head: () => ({ meta: [{ title: "Search — Sonora" }] }),
   component: SearchPage,
 });
 
+function useDebounced<T>(value: T, ms = 400): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
 function SearchPage() {
   const [q, setQ] = useState("");
+  const debounced = useDebounced(q, 400);
+
+  const { data, isFetching } = useQuery({
+    queryKey: ["search", debounced],
+    queryFn: () => unifiedSearch({ data: { q: debounced } }),
+    enabled: debounced.trim().length > 1,
+    staleTime: 60_000,
+  });
+
+  const yt = data?.youtube ?? [];
+  const jm = data?.jamendo ?? [];
+  const au = data?.audius ?? [];
+  const all = [...yt, ...jm, ...au];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
@@ -22,48 +47,40 @@ function SearchPage() {
           placeholder="Search songs, artists, or albums..."
           className="pl-10 h-11 bg-card border-border"
         />
+        {isFetching && (
+          <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+        )}
       </div>
 
-      <Tabs defaultValue="all" className="mt-6">
-        <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="youtube">YouTube</TabsTrigger>
-          <TabsTrigger value="free">Free Music</TabsTrigger>
-          <TabsTrigger value="previews">Previews</TabsTrigger>
-        </TabsList>
-        <TabsContent value="all" className="mt-6">
-          <EmptyState query={q} />
-        </TabsContent>
-        <TabsContent value="youtube" className="mt-6">
-          <EmptyState query={q} label="YouTube" />
-        </TabsContent>
-        <TabsContent value="free" className="mt-6">
-          <EmptyState query={q} label="Jamendo / Audius / FMA" />
-        </TabsContent>
-        <TabsContent value="previews" className="mt-6">
-          <EmptyState query={q} label="Deezer previews" />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-function EmptyState({ query, label }: { query: string; label?: string }) {
-  if (!query) {
-    return (
-      <div className="rounded-lg border border-dashed border-border p-12 text-center">
-        <SearchIcon className="mx-auto h-10 w-10 text-muted-foreground" />
-        <p className="mt-4 text-sm text-muted-foreground">
-          {label ? `Search ${label}` : "Start typing to search"}
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="rounded-lg border border-dashed border-border p-12 text-center">
-      <p className="text-sm text-muted-foreground">
-        Results for &quot;{query}&quot; will appear in Phase 2
-      </p>
+      {debounced.trim().length <= 1 ? (
+        <div className="mt-10 rounded-lg border border-dashed border-border p-12 text-center">
+          <SearchIcon className="mx-auto h-10 w-10 text-muted-foreground" />
+          <p className="mt-4 text-sm text-muted-foreground">
+            Start typing to search across YouTube, Jamendo, and Audius.
+          </p>
+        </div>
+      ) : (
+        <Tabs defaultValue="all" className="mt-6">
+          <TabsList>
+            <TabsTrigger value="all">All ({all.length})</TabsTrigger>
+            <TabsTrigger value="youtube">YouTube ({yt.length})</TabsTrigger>
+            <TabsTrigger value="jamendo">Jamendo ({jm.length})</TabsTrigger>
+            <TabsTrigger value="audius">Audius ({au.length})</TabsTrigger>
+          </TabsList>
+          <TabsContent value="all" className="mt-6">
+            <TrackGrid tracks={all} />
+          </TabsContent>
+          <TabsContent value="youtube" className="mt-6">
+            <TrackGrid tracks={yt} />
+          </TabsContent>
+          <TabsContent value="jamendo" className="mt-6">
+            <TrackGrid tracks={jm} />
+          </TabsContent>
+          <TabsContent value="audius" className="mt-6">
+            <TrackGrid tracks={au} />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }
