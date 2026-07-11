@@ -1,16 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Play, TrendingUp, Sparkles, Radio } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
-    meta: [{ title: "হোম — Sonora" }],
+    meta: [{ title: "Home — Sonora" }],
   }),
   component: HomePage,
 });
 
 const mockSections = [
   {
-    title: "ট্রেন্ডিং এখন",
+    title: "Trending Now",
     icon: TrendingUp,
     items: [
       { title: "Blinding Lights", artist: "The Weeknd", source: "youtube" },
@@ -21,7 +22,7 @@ const mockSections = [
     ],
   },
   {
-    title: "নতুন রিলিজ — Jamendo",
+    title: "New Releases — Jamendo",
     icon: Sparkles,
     items: [
       { title: "Acoustic Dreams", artist: "Luna Waves", source: "jamendo" },
@@ -32,7 +33,7 @@ const mockSections = [
     ],
   },
   {
-    title: "Audius থেকে",
+    title: "From Audius",
     icon: Radio,
     items: [
       { title: "Underground Beat", artist: "DJ Void", source: "audius" },
@@ -52,16 +53,27 @@ const sourceColors: Record<string, string> = {
   deezer: "bg-pink-500/20 text-pink-300",
 };
 
-function HomePage() {
+function getGreeting() {
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? "শুভ সকাল" : hour < 17 ? "শুভ দুপুর" : "শুভ সন্ধ্যা";
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function HomePage() {
+  // Compute greeting only on the client to avoid SSR/client hydration mismatch
+  // when the server and client are in different time zones.
+  const [greeting, setGreeting] = useState("Welcome back");
+  useEffect(() => {
+    setGreeting(getGreeting());
+  }, []);
 
   return (
     <div className="gradient-hero min-h-full">
       <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
         <h1 className="text-2xl md:text-4xl font-bold">{greeting}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          আজ কী শুনতে চাও?
+          What do you want to listen to today?
         </p>
 
         {mockSections.map((section) => {
@@ -92,11 +104,9 @@ function HomePage() {
                       </button>
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="truncate text-sm font-semibold">
-                          {item.title}
-                        </p>
-                      </div>
+                      <p className="truncate text-sm font-semibold">
+                        {item.title}
+                      </p>
                       <p className="mt-1 truncate text-xs text-muted-foreground">
                         {item.artist}
                       </p>
@@ -114,7 +124,7 @@ function HomePage() {
         })}
 
         <p className="mt-12 text-center text-xs text-muted-foreground">
-          Phase 1 — শুধু UI shell। Phase 2-এ real source adapters connect হবে।
+          Phase 1 — UI shell only. Real source adapters connect in Phase 2.
         </p>
       </div>
     </div>

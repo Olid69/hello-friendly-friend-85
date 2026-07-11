@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/search")({
-  head: () => ({ meta: [{ title: "সার্চ — Sonora" }] }),
+  head: () => ({ meta: [{ title: "Search — Sonora" }] }),
   component: SearchPage,
 });
 
@@ -19,14 +19,14 @@ function SearchPage() {
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="গান, শিল্পী বা অ্যালবাম খুঁজো..."
+          placeholder="Search songs, artists, or albums..."
           className="pl-10 h-11 bg-card border-border"
         />
       </div>
 
       <Tabs defaultValue="all" className="mt-6">
         <TabsList>
-          <TabsTrigger value="all">সব</TabsTrigger>
+          <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="youtube">YouTube</TabsTrigger>
           <TabsTrigger value="free">Free Music</TabsTrigger>
           <TabsTrigger value="previews">Previews</TabsTrigger>
@@ -54,7 +54,7 @@ function EmptyState({ query, label }: { query: string; label?: string }) {
       <div className="rounded-lg border border-dashed border-border p-12 text-center">
         <SearchIcon className="mx-auto h-10 w-10 text-muted-foreground" />
         <p className="mt-4 text-sm text-muted-foreground">
-          {label ? `${label}-এ ` : ""}কিছু লিখে সার্চ করো
+          {label ? `Search ${label}` : "Start typing to search"}
         </p>
       </div>
     );
@@ -62,7 +62,7 @@ function EmptyState({ query, label }: { query: string; label?: string }) {
   return (
     <div className="rounded-lg border border-dashed border-border p-12 text-center">
       <p className="text-sm text-muted-foreground">
-        "{query}" এর জন্য রেজাল্ট Phase 2-এ যুক্ত হবে
+        Results for &quot;{query}&quot; will appear in Phase 2
       </p>
     </div>
   );

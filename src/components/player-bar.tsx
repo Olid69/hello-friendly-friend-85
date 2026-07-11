@@ -70,7 +70,7 @@ export function PlayerBar() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <p className="truncate text-sm font-medium">
-                {current?.title ?? "কোনো গান বাজছে না"}
+                {current?.title ?? "Nothing playing"}
               </p>
               {current && (
                 <span
@@ -84,7 +84,7 @@ export function PlayerBar() {
               )}
             </div>
             <p className="truncate text-xs text-muted-foreground">
-              {current?.artist ?? "সার্চ করে গান বাজাও"}
+              {current?.artist ?? "Search and play a track"}
             </p>
           </div>
           <button

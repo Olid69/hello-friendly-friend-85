@@ -3,10 +3,10 @@ import { Home, Search, Library, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { to: "/", label: "হোম", icon: Home },
-  { to: "/search", label: "সার্চ", icon: Search },
-  { to: "/library", label: "লাইব্রেরি", icon: Library },
-  { to: "/settings", label: "সেটিংস", icon: Settings },
+  { to: "/", label: "Home", icon: Home },
+  { to: "/search", label: "Search", icon: Search },
+  { to: "/library", label: "Library", icon: Library },
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function MobileNav() {

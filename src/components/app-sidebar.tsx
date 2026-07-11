@@ -12,15 +12,15 @@ import {
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", label: "হোম", icon: Home },
-  { to: "/search", label: "সার্চ", icon: Search },
-  { to: "/library", label: "লাইব্রেরি", icon: Library },
+  { to: "/", label: "Home", icon: Home },
+  { to: "/search", label: "Search", icon: Search },
+  { to: "/library", label: "Your Library", icon: Library },
 ];
 
 const libraryItems = [
-  { to: "/liked", label: "লাইকড", icon: Heart },
-  { to: "/queue", label: "কিউ", icon: ListMusic },
-  { to: "/recent", label: "সাম্প্রতিক", icon: Clock },
+  { to: "/liked", label: "Liked Songs", icon: Heart },
+  { to: "/queue", label: "Queue", icon: ListMusic },
+  { to: "/recent", label: "Recently Played", icon: Clock },
 ];
 
 export function AppSidebar() {
@@ -58,7 +58,7 @@ export function AppSidebar() {
       </nav>
 
       <div className="mt-6 px-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        তোমার সংগ্রহ
+        Your Collection
       </div>
       <nav className="mt-2 flex flex-col gap-1 px-3">
         {libraryItems.map((item) => {
@@ -93,10 +93,10 @@ export function AppSidebar() {
           )}
         >
           <Settings className="h-4 w-4" />
-          সেটিংস
+          Settings
         </Link>
         <p className="mt-3 px-3 text-[10px] leading-relaxed text-muted-foreground">
-          শুধুমাত্র ব্যক্তিগত ব্যবহারের জন্য। Piped-এর মাধ্যমে YouTube ToS মেনে চলে।
+          For personal use only. Respects YouTube ToS via Piped.
         </p>
       </div>
     </aside>
