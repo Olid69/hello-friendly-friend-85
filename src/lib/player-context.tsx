@@ -48,6 +48,7 @@ const PlayerContext = createContext<PlayerContextValue | null>(null);
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [current, setCurrent] = useState<UnifiedTrack | null>(null);
   const [queue, setQueue] = useState<UnifiedTrack[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -61,23 +62,31 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [playRequestId, setPlayRequestId] = useState(0);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.volume = volume;
+    if (audioRef.current) audioRef.current.volume = volume;
+    if (videoRef.current) videoRef.current.volume = volume;
   }, [volume]);
+
+  const getActiveMedia = () =>
+    current?.source === "youtube" ? videoRef.current : audioRef.current;
+
+  const resetMedia = (media: HTMLMediaElement | null) => {
+    if (!media) return;
+    media.pause();
+    media.removeAttribute("src");
+    media.load();
+  };
 
   // Load stream when current changes (resolves YouTube via Piped on demand).
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !current) return;
+    const media = getActiveMedia();
+    if (!media || !current) return;
     let cancelled = false;
     const load = async () => {
       setIsLoading(true);
       setError(null);
       setIsPlaying(false);
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
+      resetMedia(audioRef.current);
+      resetMedia(videoRef.current);
 
       let url = current.streamUrl;
       if (!url && current.source === "youtube") {
@@ -95,9 +104,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setError("This track could not be played.");
         return;
       }
-      audio.src = url;
+      media.src = url;
       try {
-        await audio.play();
+        await media.play();
         if (!cancelled) {
           setIsPlaying(true);
           setError(null);
@@ -127,13 +136,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   };
 
   const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!audio || !current) return;
-    if (audio.paused) {
-      audio.play().catch(() => {});
+    const media = getActiveMedia();
+    if (!media || !current) return;
+    if (media.paused) {
+      media.play().catch(() => {
+        setIsPlaying(false);
+        setError("Playback failed. Try another source or track.");
+      });
       setIsPlaying(true);
     } else {
-      audio.pause();
+      media.pause();
       setIsPlaying(false);
     }
   };
@@ -159,8 +171,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   };
 
   const seek = (seconds: number) => {
-    const audio = audioRef.current;
-    if (audio) audio.currentTime = seconds;
+    const media = getActiveMedia();
+    if (media) media.currentTime = seconds;
     setProgress(seconds);
   };
 
@@ -194,25 +206,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-      <audio
-        ref={audioRef}
+      <audio ref={audioRef} preload="metadata" {...mediaHandlers} />
+      <video
+        ref={videoRef}
         preload="metadata"
-        onTimeUpdate={(e) => setProgress(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-        onCanPlay={() => setIsLoading(false)}
-        onError={() => {
-          setIsLoading(false);
-          setIsPlaying(false);
-          setError("Playback failed. Try another source or track.");
-        }}
-        onEnded={() => {
-          if (repeat === "one" && audioRef.current) {
-            audioRef.current.currentTime = 0;
-            audioRef.current.play().catch(() => {});
-          } else {
-            next();
-          }
-        }}
+        playsInline
+        className="hidden"
+        {...mediaHandlers}
       />
     </PlayerContext.Provider>
   );
