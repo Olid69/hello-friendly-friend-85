@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { resolveYoutubeStream } from "./music-sources.functions";
 
 export type TrackSource = "youtube" | "jamendo" | "audius" | "fma" | "deezer";
 
@@ -31,6 +32,8 @@ type PlayerContextValue = {
   volume: number;
   shuffle: boolean;
   repeat: RepeatMode;
+  isLoading: boolean;
+  error: string | null;
   playTrack: (track: UnifiedTrack, queue?: UnifiedTrack[]) => void;
   togglePlay: () => void;
   next: () => void;
@@ -53,6 +56,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [volume, setVolumeState] = useState(0.8);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>("off");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [playRequestId, setPlayRequestId] = useState(0);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -66,33 +72,57 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!audio || !current) return;
     let cancelled = false;
     const load = async () => {
+      setIsLoading(true);
+      setError(null);
+      setIsPlaying(false);
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+
       let url = current.streamUrl;
       if (!url && current.source === "youtube") {
         try {
-          const { resolveYoutubeStream } = await import(
-            "./music-sources.functions"
-          );
           const videoId = current.id.replace(/^youtube:/, "");
           const res = await resolveYoutubeStream({ data: { videoId } });
           url = res.streamUrl ?? undefined;
-        } catch {
-          /* ignore */
+        } catch (err) {
+          console.error("YouTube stream resolution failed", err);
         }
       }
-      if (cancelled || !url) return;
+      if (cancelled) return;
+      if (!url) {
+        setIsLoading(false);
+        setError("This track could not be played.");
+        return;
+      }
       audio.src = url;
-      audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      try {
+        await audio.play();
+        if (!cancelled) {
+          setIsPlaying(true);
+          setError(null);
+        }
+      } catch (err) {
+        console.error("Audio playback failed", err);
+        if (!cancelled) {
+          setIsPlaying(false);
+          setError("Playback failed. Try another source or track.");
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     };
     load();
     return () => {
       cancelled = true;
     };
-  }, [current]);
+  }, [current, playRequestId]);
 
   const playTrack = (track: UnifiedTrack, newQueue?: UnifiedTrack[]) => {
     if (newQueue) setQueue(newQueue);
     else if (!queue.some((t) => t.id === track.id)) setQueue([track]);
     setCurrent(track);
+    setPlayRequestId((id) => id + 1);
     setIsPlaying(true);
   };
 
@@ -151,6 +181,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         volume,
         shuffle,
         repeat,
+        isLoading,
+        error,
         playTrack,
         togglePlay,
         next,
@@ -167,6 +199,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         preload="metadata"
         onTimeUpdate={(e) => setProgress(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+        onCanPlay={() => setIsLoading(false)}
+        onError={() => {
+          setIsLoading(false);
+          setIsPlaying(false);
+          setError("Playback failed. Try another source or track.");
+        }}
         onEnded={() => {
           if (repeat === "one" && audioRef.current) {
             audioRef.current.currentTime = 0;
