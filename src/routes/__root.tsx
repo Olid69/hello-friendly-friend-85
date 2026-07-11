@@ -20,16 +20,16 @@ function NotFoundComponent() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-primary">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">পেজ পাওয়া যায়নি</h2>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          আপনি যে পেজ খুঁজছেন সেটা নেই বা সরিয়ে ফেলা হয়েছে।
+          The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
         <div className="mt-6">
           <Link
             to="/"
             className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground transition-transform hover:scale-105"
           >
-            হোমে যাও
+            Go home
           </Link>
         </div>
       </div>
@@ -48,10 +48,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          পেজ লোড হয়নি
+          This page didn&apos;t load
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          কিছু একটা ভুল হয়েছে। আবার চেষ্টা করুন অথবা হোমে ফিরে যান।
+          Something went wrong. Try again or head back home.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -61,13 +61,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             }}
             className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground transition-transform hover:scale-105"
           >
-            আবার চেষ্টা করো
+            Try again
           </button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-full border border-border bg-card px-6 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
           >
-            হোমে যাও
+            Go home
           </a>
         </div>
       </div>
@@ -85,12 +85,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "৫টা সোর্স থেকে গান শোনো — YouTube (Piped), Jamendo, Audius, FMA, Deezer। ব্যক্তিগত ব্যবহারের জন্য।",
+          "Stream music from 5 sources — YouTube (Piped), Jamendo, Audius, FMA, and Deezer. For personal use.",
       },
       { property: "og:title", content: "Sonora — Personal Music Streaming" },
       {
         property: "og:description",
-        content: "৫টা সোর্স থেকে গান শোনো এক জায়গায়।",
+        content: "Stream music from 5 sources in one place.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -121,7 +121,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="bn" className="dark">
+    <html lang="en" className="dark">
       <head>
         <HeadContent />
       </head>

@@ -2,20 +2,20 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Heart, ListMusic, Clock, Download } from "lucide-react";
 
 export const Route = createFileRoute("/library")({
-  head: () => ({ meta: [{ title: "লাইব্রেরি — Sonora" }] }),
+  head: () => ({ meta: [{ title: "Library — Sonora" }] }),
   component: LibraryPage,
 });
 
 const cards = [
-  { to: "/liked", label: "লাইকড গান", icon: Heart, desc: "তোমার পছন্দের সব গান" },
-  { to: "/queue", label: "কিউ", icon: ListMusic, desc: "এখন যা বাজবে" },
-  { to: "/recent", label: "সাম্প্রতিক", icon: Clock, desc: "সদ্য শোনা গান" },
+  { to: "/liked", label: "Liked Songs", icon: Heart, desc: "All your favorites" },
+  { to: "/queue", label: "Queue", icon: ListMusic, desc: "What's playing next" },
+  { to: "/recent", label: "Recently Played", icon: Clock, desc: "Your listening history" },
 ] as const;
 
 function LibraryPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
-      <h1 className="text-2xl md:text-3xl font-bold">তোমার লাইব্রেরি</h1>
+      <h1 className="text-2xl md:text-3xl font-bold">Your Library</h1>
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((c) => {
           const Icon = c.icon;
@@ -40,8 +40,8 @@ function LibraryPage() {
             <Download className="h-6 w-6" />
           </div>
           <div>
-            <p className="font-semibold">অফলাইন ডাউনলোড</p>
-            <p className="text-xs text-muted-foreground">Phase 7-এ আসবে</p>
+            <p className="font-semibold">Offline Downloads</p>
+            <p className="text-xs text-muted-foreground">Coming in Phase 7</p>
           </div>
         </div>
       </div>
