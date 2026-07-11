@@ -60,11 +60,40 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     audio.volume = volume;
   }, [volume]);
 
+  // Load stream when current changes (resolves YouTube via Piped on demand).
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !current) return;
+    let cancelled = false;
+    const load = async () => {
+      let url = current.streamUrl;
+      if (!url && current.source === "youtube") {
+        try {
+          const { resolveYoutubeStream } = await import(
+            "./music-sources.functions"
+          );
+          const videoId = current.id.replace(/^youtube:/, "");
+          const res = await resolveYoutubeStream({ data: { videoId } });
+          url = res.streamUrl ?? undefined;
+        } catch {
+          /* ignore */
+        }
+      }
+      if (cancelled || !url) return;
+      audio.src = url;
+      audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [current]);
+
   const playTrack = (track: UnifiedTrack, newQueue?: UnifiedTrack[]) => {
-    setCurrent(track);
     if (newQueue) setQueue(newQueue);
+    else if (!queue.some((t) => t.id === track.id)) setQueue([track]);
+    setCurrent(track);
     setIsPlaying(true);
-    // Audio load/play will be wired in Phase 2 when adapters exist.
   };
 
   const togglePlay = () => {
