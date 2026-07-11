@@ -35,7 +35,8 @@ function SearchPage() {
   const yt = data?.youtube ?? [];
   const jm = data?.jamendo ?? [];
   const au = data?.audius ?? [];
-  const all = [...yt, ...jm, ...au];
+  const dz = data?.deezer ?? [];
+  const all = [...yt, ...jm, ...au, ...dz];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
@@ -56,31 +57,26 @@ function SearchPage() {
         <div className="mt-10 rounded-lg border border-dashed border-border p-12 text-center">
           <SearchIcon className="mx-auto h-10 w-10 text-muted-foreground" />
           <p className="mt-4 text-sm text-muted-foreground">
-            Start typing to search across YouTube, Jamendo, and Audius.
+            Start typing to search across YouTube, Jamendo, Audius, and Deezer.
           </p>
         </div>
       ) : (
         <Tabs defaultValue="all" className="mt-6">
-          <TabsList>
+          <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="all">All ({all.length})</TabsTrigger>
             <TabsTrigger value="youtube">YouTube ({yt.length})</TabsTrigger>
             <TabsTrigger value="jamendo">Jamendo ({jm.length})</TabsTrigger>
             <TabsTrigger value="audius">Audius ({au.length})</TabsTrigger>
+            <TabsTrigger value="deezer">Deezer ({dz.length})</TabsTrigger>
           </TabsList>
-          <TabsContent value="all" className="mt-6">
-            <TrackGrid tracks={all} />
-          </TabsContent>
-          <TabsContent value="youtube" className="mt-6">
-            <TrackGrid tracks={yt} />
-          </TabsContent>
-          <TabsContent value="jamendo" className="mt-6">
-            <TrackGrid tracks={jm} />
-          </TabsContent>
-          <TabsContent value="audius" className="mt-6">
-            <TrackGrid tracks={au} />
-          </TabsContent>
+          <TabsContent value="all" className="mt-6"><TrackGrid tracks={all} /></TabsContent>
+          <TabsContent value="youtube" className="mt-6"><TrackGrid tracks={yt} /></TabsContent>
+          <TabsContent value="jamendo" className="mt-6"><TrackGrid tracks={jm} /></TabsContent>
+          <TabsContent value="audius" className="mt-6"><TrackGrid tracks={au} /></TabsContent>
+          <TabsContent value="deezer" className="mt-6"><TrackGrid tracks={dz} /></TabsContent>
         </Tabs>
       )}
     </div>
   );
 }
+
