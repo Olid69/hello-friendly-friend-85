@@ -7,6 +7,9 @@ import {
   type ReactNode,
   type SyntheticEvent,
 } from "react";
+import { attachEqualizer } from "./equalizer";
+import { getDownloadBlobUrl } from "./downloads-store";
+
 
 export type TrackSource = "youtube" | "jamendo" | "audius" | "fma" | "deezer";
 
