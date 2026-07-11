@@ -170,7 +170,25 @@ export async function resolvePipedStream(
     mimeType?: string;
   }>;
   const playable = audios.filter((audio) => audio.url);
-  if (playable.length === 0) return null;
-  playable.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
-  return playable[0]?.url ?? null;
+  if (playable.length > 0) {
+    playable.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
+    return playable[0]?.url ?? null;
+  }
+
+  // Some Piped instances return YouTube Music tracks as a muxed MP4 only.
+  // HTMLAudioElement can still play that URL as audio, so use it as fallback.
+  const videos = (json?.videoStreams ?? []) as Array<{
+    url?: string;
+    quality?: string;
+    videoOnly?: boolean;
+    mimeType?: string;
+  }>;
+  const muxed = videos.filter((video) => video.url && !video.videoOnly);
+  if (muxed.length === 0) return null;
+  muxed.sort((a, b) => {
+    const aq = Number.parseInt(a.quality ?? "0", 10) || 0;
+    const bq = Number.parseInt(b.quality ?? "0", 10) || 0;
+    return aq - bq;
+  });
+  return muxed[0]?.url ?? null;
 }
