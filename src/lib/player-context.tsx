@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type SyntheticEvent,
 } from "react";
 
 export type TrackSource = "youtube" | "jamendo" | "audius" | "fma" | "deezer";
@@ -31,6 +32,8 @@ type PlayerContextValue = {
   volume: number;
   shuffle: boolean;
   repeat: RepeatMode;
+  isLoading: boolean;
+  error: string | null;
   playTrack: (track: UnifiedTrack, queue?: UnifiedTrack[]) => void;
   togglePlay: () => void;
   next: () => void;
@@ -41,10 +44,21 @@ type PlayerContextValue = {
   cycleRepeat: () => void;
 };
 
+declare global {
+  interface Window {
+    YT?: any;
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
 const PlayerContext = createContext<PlayerContextValue | null>(null);
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const youtubeContainerRef = useRef<HTMLDivElement | null>(null);
+  const youtubePlayerRef = useRef<any>(null);
+  const pendingYoutubeVideoIdRef = useRef<string | null>(null);
   const [current, setCurrent] = useState<UnifiedTrack | null>(null);
   const [queue, setQueue] = useState<UnifiedTrack[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -53,57 +67,207 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [volume, setVolumeState] = useState(0.8);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>("off");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [playRequestId, setPlayRequestId] = useState(0);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.volume = volume;
+    if (audioRef.current) audioRef.current.volume = volume;
+    if (videoRef.current) videoRef.current.volume = volume;
+    youtubePlayerRef.current?.setVolume?.(Math.round(volume * 100));
   }, [volume]);
+
+  const getActiveMedia = () =>
+    current?.source === "youtube" ? videoRef.current : audioRef.current;
+
+  const resetMedia = (media: HTMLMediaElement | null) => {
+    if (!media) return;
+    media.pause();
+    media.removeAttribute("src");
+    media.load();
+  };
+
+  const finishTrack = () => {
+    const media = getActiveMedia();
+    if (repeat === "one" && media) {
+      media.currentTime = 0;
+      media.play().catch(() => {});
+    } else if (repeat === "one" && current?.source === "youtube") {
+      youtubePlayerRef.current?.seekTo?.(0, true);
+      youtubePlayerRef.current?.playVideo?.();
+    } else {
+      next();
+    }
+  };
+
+  const createYoutubePlayer = () => {
+    if (typeof window === "undefined" || youtubePlayerRef.current) return;
+    if (!youtubeContainerRef.current || !window.YT?.Player) return;
+    youtubePlayerRef.current = new window.YT.Player(youtubeContainerRef.current, {
+      height: "1",
+      width: "1",
+      playerVars: {
+        autoplay: 0,
+        controls: 0,
+        disablekb: 1,
+        modestbranding: 1,
+        playsinline: 1,
+        rel: 0,
+        origin: window.location.origin,
+      },
+      events: {
+        onReady: (event: any) => {
+          event.target.setVolume(Math.round(volume * 100));
+          const pending = pendingYoutubeVideoIdRef.current;
+          if (pending) {
+            event.target.loadVideoById(pending);
+          }
+        },
+        onStateChange: (event: any) => {
+          const state = event.data;
+          if (state === window.YT?.PlayerState?.PLAYING) {
+            setIsLoading(false);
+            setIsPlaying(true);
+            setError(null);
+          } else if (state === window.YT?.PlayerState?.PAUSED) {
+            setIsPlaying(false);
+          } else if (state === window.YT?.PlayerState?.BUFFERING) {
+            setIsLoading(true);
+          } else if (state === window.YT?.PlayerState?.ENDED) {
+            setIsPlaying(false);
+            finishTrack();
+          }
+        },
+        onError: () => {
+          setIsLoading(false);
+          setIsPlaying(false);
+          setError("YouTube playback failed. Try another source or track.");
+        },
+      },
+    });
+  };
+
+  const ensureYoutubePlayer = () => {
+    if (typeof window === "undefined") return;
+    if (youtubePlayerRef.current) return;
+    if (window.YT?.Player) {
+      createYoutubePlayer();
+      return;
+    }
+    window.onYouTubeIframeAPIReady = createYoutubePlayer;
+    if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      const script = document.createElement("script");
+      script.src = "https://www.youtube.com/iframe_api";
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  };
+
+  useEffect(() => {
+    ensureYoutubePlayer();
+    return () => {
+      youtubePlayerRef.current?.destroy?.();
+      youtubePlayerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (current?.source !== "youtube") return;
+    const timer = window.setInterval(() => {
+      const player = youtubePlayerRef.current;
+      if (!player?.getCurrentTime) return;
+      setProgress(player.getCurrentTime() || 0);
+      setDuration(player.getDuration?.() || current.duration || 0);
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [current]);
 
   // Load stream when current changes (resolves YouTube via Piped on demand).
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !current) return;
+    if (!current) return;
     let cancelled = false;
     const load = async () => {
-      let url = current.streamUrl;
-      if (!url && current.source === "youtube") {
-        try {
-          const { resolveYoutubeStream } = await import(
-            "./music-sources.functions"
-          );
-          const videoId = current.id.replace(/^youtube:/, "");
-          const res = await resolveYoutubeStream({ data: { videoId } });
-          url = res.streamUrl ?? undefined;
-        } catch {
-          /* ignore */
-        }
+      setIsLoading(true);
+      setError(null);
+      setIsPlaying(false);
+      setProgress(0);
+      setDuration(current.duration || 0);
+      resetMedia(audioRef.current);
+      resetMedia(videoRef.current);
+
+      if (current.source === "youtube") {
+        const videoId = current.id.replace(/^youtube:/, "");
+        pendingYoutubeVideoIdRef.current = videoId;
+        ensureYoutubePlayer();
+        youtubePlayerRef.current?.loadVideoById?.(videoId);
+        return;
       }
-      if (cancelled || !url) return;
-      audio.src = url;
-      audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+
+      youtubePlayerRef.current?.stopVideo?.();
+      const media = audioRef.current;
+      if (!media) return;
+
+      let url = current.streamUrl;
+      if (cancelled) return;
+      if (!url) {
+        setIsLoading(false);
+        setError("This track could not be played.");
+        return;
+      }
+      media.src = url;
+      try {
+        await media.play();
+        if (!cancelled) {
+          setIsPlaying(true);
+          setError(null);
+        }
+      } catch (err) {
+        console.error("Audio playback failed", err);
+        if (!cancelled) {
+          setIsPlaying(false);
+          setError("Playback failed. Try another source or track.");
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     };
     load();
     return () => {
       cancelled = true;
     };
-  }, [current]);
+  }, [current, playRequestId]);
 
   const playTrack = (track: UnifiedTrack, newQueue?: UnifiedTrack[]) => {
     if (newQueue) setQueue(newQueue);
     else if (!queue.some((t) => t.id === track.id)) setQueue([track]);
     setCurrent(track);
+    setPlayRequestId((id) => id + 1);
     setIsPlaying(true);
   };
 
   const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!audio || !current) return;
-    if (audio.paused) {
-      audio.play().catch(() => {});
+    if (current?.source === "youtube") {
+      const player = youtubePlayerRef.current;
+      if (!player) return;
+      if (isPlaying) {
+        player.pauseVideo?.();
+        setIsPlaying(false);
+      } else {
+        player.playVideo?.();
+        setIsPlaying(true);
+      }
+      return;
+    }
+    const media = getActiveMedia();
+    if (!media || !current) return;
+    if (media.paused) {
+      media.play().catch(() => {
+        setIsPlaying(false);
+        setError("Playback failed. Try another source or track.");
+      });
       setIsPlaying(true);
     } else {
-      audio.pause();
+      media.pause();
       setIsPlaying(false);
     }
   };
@@ -129,8 +293,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   };
 
   const seek = (seconds: number) => {
-    const audio = audioRef.current;
-    if (audio) audio.currentTime = seconds;
+    if (current?.source === "youtube") {
+      youtubePlayerRef.current?.seekTo?.(seconds, true);
+      setProgress(seconds);
+      return;
+    }
+    const media = getActiveMedia();
+    if (media) media.currentTime = seconds;
     setProgress(seconds);
   };
 
@@ -138,6 +307,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const toggleShuffle = () => setShuffle((s) => !s);
   const cycleRepeat = () =>
     setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off"));
+
+  const mediaHandlers = {
+    onTimeUpdate: (e: SyntheticEvent<HTMLMediaElement>) =>
+      setProgress(e.currentTarget.currentTime),
+    onLoadedMetadata: (e: SyntheticEvent<HTMLMediaElement>) =>
+      setDuration(e.currentTarget.duration),
+    onCanPlay: () => setIsLoading(false),
+    onError: () => {
+      setIsLoading(false);
+      setIsPlaying(false);
+      setError("Playback failed. Try another source or track.");
+    },
+    onEnded: () => {
+      finishTrack();
+    },
+  };
 
   return (
     <PlayerContext.Provider
@@ -151,6 +336,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         volume,
         shuffle,
         repeat,
+        isLoading,
+        error,
         playTrack,
         togglePlay,
         next,
@@ -162,19 +349,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-      <audio
-        ref={audioRef}
+      <audio ref={audioRef} preload="metadata" {...mediaHandlers} />
+      <video
+        ref={videoRef}
         preload="metadata"
-        onTimeUpdate={(e) => setProgress(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-        onEnded={() => {
-          if (repeat === "one" && audioRef.current) {
-            audioRef.current.currentTime = 0;
-            audioRef.current.play().catch(() => {});
-          } else {
-            next();
-          }
-        }}
+        playsInline
+        className="hidden"
+        {...mediaHandlers}
+      />
+      <div
+        ref={youtubeContainerRef}
+        aria-hidden="true"
+        className="pointer-events-none fixed bottom-0 left-0 h-px w-px opacity-0"
       />
     </PlayerContext.Provider>
   );
