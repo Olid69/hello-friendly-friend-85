@@ -135,7 +135,9 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
     handlers: {
       OPTIONS: async () => new Response(null, { status: 204, headers: CORS_HEADERS }),
       GET: async ({ request }) => {
-        const videoId = new URL(request.url).searchParams.get("videoId")?.trim() ?? "";
+        const url = new URL(request.url);
+        const videoId = url.searchParams.get("videoId")?.trim() ?? "";
+        const forceDownload = url.searchParams.get("download") === "1";
         if (!isYoutubeVideoId(videoId)) {
           return textResponse("Invalid YouTube video id", 400);
         }
@@ -143,17 +145,12 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
         try {
           const { fetchYoutubeiAudio, resolvePipedStream } = await import("@/lib/music-sources.server");
           const range = request.headers.get("range");
-          const requestedRange = parseRequestRange(range);
 
-          if (requestedRange && requestedRange.start > 0) {
-            return textResponse("Only the initial YouTube audio range is available for offline saving", 416);
-          }
-
-          if (!range) {
-            // Full-file download: use youtubei streaming (no range) to fetch
-            // the entire audio track, not just the first 1MB preview.
-            const fullAudio = await fetchYoutubeiAudio(videoId);
-            if (fullAudio && isCompleteDownload(fullAudio.body.byteLength, fullAudio.contentLength)) {
+          // Full-file download path: try youtubei.js full stream first, then
+          // fall back to chunked fetching of the Piped/Invidious signed URL.
+          if (forceDownload || !range) {
+            const fullAudio = await fetchYoutubeiAudio(videoId).catch(() => null);
+            if (fullAudio && fullAudio.body.byteLength > 200 * 1024) {
               return new Response(fullAudio.body, {
                 status: 200,
                 headers: {
@@ -165,9 +162,53 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
                 },
               });
             }
-            if (fullAudio) return textResponse(FULL_YOUTUBE_DOWNLOAD_BLOCKED, YOUTUBE_UNAVAILABLE_STATUS);
+
+            const streamUrl = await resolvePipedStream(videoId);
+            if (streamUrl) {
+              try {
+                const complete = await fetchCompleteAudio(streamUrl);
+                if (complete.body && complete.body.byteLength > 200 * 1024) {
+                  return new Response(complete.body, {
+                    status: 200,
+                    headers: {
+                      "content-type": complete.contentType ?? "audio/mp4",
+                      "content-length": String(complete.body.byteLength),
+                      "accept-ranges": "none",
+                      "cache-control": "no-store",
+                      ...CORS_HEADERS,
+                    },
+                  });
+                }
+              } catch {
+                // fall through to single-shot fetch
+              }
+
+              const single = await fetch(streamUrl, {
+                headers: { accept: "audio/*,video/*,*/*;q=0.8" },
+                signal: AbortSignal.timeout(90_000),
+              }).catch(() => null);
+              if (single && single.ok) {
+                const body = await single.arrayBuffer();
+                if (body.byteLength > 200 * 1024) {
+                  return new Response(body, {
+                    status: 200,
+                    headers: {
+                      "content-type": single.headers.get("content-type") ?? "audio/mp4",
+                      "content-length": String(body.byteLength),
+                      "accept-ranges": "none",
+                      "cache-control": "no-store",
+                      ...CORS_HEADERS,
+                    },
+                  });
+                }
+              }
+            }
+
+            return textResponse(FULL_YOUTUBE_DOWNLOAD_BLOCKED, YOUTUBE_UNAVAILABLE_STATUS);
           }
 
+          // Ranged (streaming/playback) path — used by the audio element.
+          const requestedRange = parseRequestRange(range);
           const directAudio = await fetchYoutubeiAudio(videoId, requestedRange ?? undefined);
           if (directAudio) {
             const headers = new Headers({
@@ -178,13 +219,6 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
               ...CORS_HEADERS,
             });
             if (directAudio.range) {
-              // YouTube signed media URLs often allow the first byte interval but
-              // reject later intervals from this server runtime. Advertising the
-              // true upstream size makes browsers/IndexedDB download code request
-              // chunk #2, which currently turns into a handled 502. Treat each
-              // successful response as a bounded partial object instead, so the
-              // client saves/plays the available audio without triggering a
-              // second failing range request.
               const total = directAudio.range.end + 1;
               headers.set(
                 "content-range",
@@ -200,34 +234,10 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           const streamUrl = await resolvePipedStream(videoId);
           if (!streamUrl) return textResponse("YouTube stream unavailable", 503);
 
-          if (!range) {
-            const complete = await fetchCompleteAudio(streamUrl);
-            if (complete.response && !complete.response.ok) {
-              return textResponse(FULL_YOUTUBE_DOWNLOAD_BLOCKED, YOUTUBE_UNAVAILABLE_STATUS);
-            }
-            if (!complete.body) return textResponse("YouTube download failed", YOUTUBE_UNAVAILABLE_STATUS);
-            if (!isCompleteDownload(complete.body.byteLength, complete.total)) {
-              return textResponse(FULL_YOUTUBE_DOWNLOAD_BLOCKED, YOUTUBE_UNAVAILABLE_STATUS);
-            }
-
-            return new Response(complete.body, {
-              status: 200,
-              headers: {
-                "content-type": complete.contentType ?? "audio/mp4",
-                "content-length": String(complete.total ?? complete.body.byteLength),
-                "accept-ranges": "bytes",
-                "cache-control": "no-store",
-                ...CORS_HEADERS,
-              },
-            });
-          }
-
           const upstream = await fetchUpstreamRange(streamUrl, normalizeRange(range));
-
           if (!upstream.ok) {
             return textResponse(FULL_YOUTUBE_DOWNLOAD_BLOCKED, YOUTUBE_UNAVAILABLE_STATUS);
           }
-
           const body = await upstream.arrayBuffer();
           const headers = new Headers({
             "content-type": upstream.headers.get("content-type") ?? "audio/mp4",
@@ -238,7 +248,6 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           const contentRange = upstream.headers.get("content-range");
           if (acceptRanges) headers.set("accept-ranges", acceptRanges);
           if (contentRange) headers.set("content-range", contentRange);
-
           return new Response(body, {
             status: upstream.status === 206 ? 206 : 200,
             headers,
