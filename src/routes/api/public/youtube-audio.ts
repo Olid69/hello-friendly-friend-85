@@ -44,6 +44,14 @@ function parseContentRange(value: string | null) {
   };
 }
 
+function parseRequestRange(value: string | null) {
+  const match = /^bytes=(\d+)-(\d*)$/i.exec(value ?? "");
+  if (!match) return null;
+  const start = Number(match[1]);
+  const end = match[2] ? Number(match[2]) : start + CHUNK_SIZE - 1;
+  return { start, end: Math.min(end, start + CHUNK_SIZE - 1) };
+}
+
 function concatChunks(chunks: Uint8Array[], total: number) {
   const merged = new Uint8Array(total);
   let offset = 0;
@@ -122,11 +130,34 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
         }
 
         try {
-          const { resolvePipedStream } = await import("@/lib/music-sources.server");
+          const { fetchYoutubeiAudio, resolvePipedStream } = await import("@/lib/music-sources.server");
+          const range = request.headers.get("range");
+          const requestedRange = parseRequestRange(range);
+
+          const directAudio = await fetchYoutubeiAudio(videoId, requestedRange ?? undefined);
+          if (directAudio) {
+            const headers = new Headers({
+              "content-type": directAudio.contentType,
+              "content-length": String(directAudio.body.byteLength),
+              "accept-ranges": "bytes",
+              "cache-control": "no-store",
+              ...CORS_HEADERS,
+            });
+            if (directAudio.range) {
+              const total = directAudio.range.total ?? directAudio.range.end + 1;
+              headers.set(
+                "content-range",
+                `bytes ${directAudio.range.start}-${directAudio.range.end}/${total}`,
+              );
+            }
+            return new Response(directAudio.body, {
+              status: directAudio.range ? 206 : 200,
+              headers,
+            });
+          }
+
           const streamUrl = await resolvePipedStream(videoId);
           if (!streamUrl) return textResponse("YouTube stream unavailable", 503);
-
-          const range = request.headers.get("range");
 
           if (!range) {
             const complete = await fetchCompleteAudio(streamUrl);
