@@ -55,7 +55,9 @@ function concatChunks(chunks: Uint8Array[], total: number) {
 }
 
 async function fetchUpstreamRange(streamUrl: string, range: string) {
-  return fetch(streamUrl, {
+  const url = new URL(streamUrl);
+  url.searchParams.delete("range");
+  return fetch(url.toString(), {
     headers: {
       accept: "audio/*,video/*,*/*;q=0.8",
       range,
