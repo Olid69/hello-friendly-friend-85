@@ -206,7 +206,7 @@ export async function getDownloadBlobUrl(id: string): Promise<string | null> {
   });
   db.close();
   if (!item) return null;
-  if (isIncompleteYouTubeDownload(item.track, item.blob) || isPreviewOnlyDownload(item.track)) {
+  if (isPreviewOnlyDownload(item.track)) {
     await deleteDownload(id);
     return null;
   }
