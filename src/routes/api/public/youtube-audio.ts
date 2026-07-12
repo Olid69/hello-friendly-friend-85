@@ -140,16 +140,15 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           }
 
           if (!range) {
-            const previewAudio = await fetchYoutubeiAudio(videoId, {
-              start: 0,
-              end: CHUNK_SIZE - 1,
-            });
-            if (previewAudio) {
-              return new Response(previewAudio.body, {
+            // Full-file download: use youtubei streaming (no range) to fetch
+            // the entire audio track, not just the first 1MB preview.
+            const fullAudio = await fetchYoutubeiAudio(videoId);
+            if (fullAudio) {
+              return new Response(fullAudio.body, {
                 status: 200,
                 headers: {
-                  "content-type": previewAudio.contentType,
-                  "content-length": String(previewAudio.body.byteLength),
+                  "content-type": fullAudio.contentType,
+                  "content-length": String(fullAudio.body.byteLength),
                   "accept-ranges": "none",
                   "cache-control": "no-store",
                   ...CORS_HEADERS,
