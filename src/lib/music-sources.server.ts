@@ -177,6 +177,23 @@ function pickAudio(audios: Array<{ url?: string; bitrate?: number }>): string | 
   return playable[0]?.url ?? null;
 }
 
+async function canFetchMedia(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        range: "bytes=0-1023",
+        accept: "audio/*,video/*,*/*;q=0.8",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return false;
+    await res.body?.cancel().catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 type YoutubeiClient = {
   name: string;
   type: ClientType;
@@ -275,7 +292,7 @@ export async function resolvePipedStream(
       if (!res.ok) continue;
       const json = (await res.json()) as any;
       const audio = pickAudio(json?.audioStreams ?? []);
-      if (audio) return audio;
+      if (audio && (await canFetchMedia(audio))) return audio;
       const videos = (json?.videoStreams ?? []) as Array<{
         url?: string;
         quality?: string;
@@ -288,7 +305,7 @@ export async function resolvePipedStream(
           const bq = Number.parseInt(b.quality ?? "0", 10) || 0;
           return aq - bq;
         });
-        if (muxed[0]?.url) return muxed[0].url;
+        if (muxed[0]?.url && (await canFetchMedia(muxed[0].url))) return muxed[0].url;
       }
     } catch {
       continue;
@@ -316,17 +333,17 @@ export async function resolvePipedStream(
         .filter((f) => f.url && (f.type ?? "").startsWith("audio"))
         .map((f) => ({ url: f.url, bitrate: Number(f.bitrate) || 0 }));
       const audio = pickAudio(audios);
-      if (audio) return audio;
+      if (audio && (await canFetchMedia(audio))) return audio;
       const formats = (json?.formatStreams ?? []) as Array<{ url?: string }>;
       const muxed = formats.find((f) => f.url);
-      if (muxed?.url) return muxed.url;
+      if (muxed?.url && (await canFetchMedia(muxed.url))) return muxed.url;
     } catch {
       continue;
     }
   }
 
   const youtubei = await resolveYoutubeiStream(videoId);
-  if (youtubei) return youtubei;
+  if (youtubei && (await canFetchMedia(youtubei))) return youtubei;
 
   return null;
 }
