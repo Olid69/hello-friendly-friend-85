@@ -445,13 +445,19 @@ export async function fetchYoutubeiAudio(
       }
 
       const info = await innertube.getBasicInfo(videoId, poToken ? { po_token: poToken } : undefined);
+      const durationSec = Number(
+        (info as any)?.basic_info?.duration ??
+          (info as any)?.videoDetails?.lengthSeconds ??
+          0,
+      ) || undefined;
+      const minBytes = minPlausibleAudioBytes(durationSec);
 
       // Full offline save: first try progressive MP4 (audio+video) formats.
       // Mobile YouTube clients still expose these as one complete file, while
       // modern audio-only GVS links often require a PO token after the first 1MB.
       if (!range) {
         for (const progressiveFormat of getProgressiveYoutubeFormats(info)) {
-          const direct = await fetchWholeYoutubeFormat(progressiveFormat, innertube, poToken);
+          const direct = await fetchWholeYoutubeFormat(progressiveFormat, innertube, poToken, durationSec);
           if (direct) return direct;
         }
       }
@@ -503,7 +509,8 @@ export async function fetchYoutubeiAudio(
           const complete = contentLength
             ? body.byteLength >= Math.floor(contentLength * 0.98)
             : body.byteLength > YT_CHUNK + 64 * 1024; // >1MB stub guard
-          if (complete) {
+          // Duration sanity: reject stubs that "match" a lied-about content-length.
+          if (complete && body.byteLength >= minBytes) {
             return { body, contentType, contentLength: contentLength ?? body.byteLength };
           }
         }
@@ -555,6 +562,8 @@ export async function fetchYoutubeiAudio(
         ? downloaded >= Math.floor(contentLength * 0.98)
         : sawShortChunk;
       if (!looksComplete) continue;
+      // Duration sanity: still reject a throttled ~1MB stub even when it looks "complete".
+      if (downloaded < minBytes) continue;
 
       const merged = new Uint8Array(downloaded);
       let offset = 0;
