@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import {
   Play,
   Music2,
@@ -9,6 +10,7 @@ import {
   Check,
   ListEnd,
   ListStart,
+  Search,
   X,
 } from "lucide-react";
 import { usePlayer, type UnifiedTrack } from "@/lib/player-context";
@@ -35,9 +37,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
-type MirrorCandidate = UnifiedTrack & { verified?: boolean };
+type MirrorCandidate = UnifiedTrack & { verified?: boolean; matchScore?: number };
 
 
 const sourceColors: Record<string, string> = {
@@ -53,28 +56,61 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
   const { playlists, create, addTrack } = usePlaylists();
   const { isDownloaded } = useDownloads();
   const { playTrack, addToQueue, playNext } = usePlayer();
+  const fetchAlternatives = useServerFn(downloadableAlternatives);
   const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [candidates, setCandidates] = useState<MirrorCandidate[]>([]);
+  const [candidateQuery, setCandidateQuery] = useState([track.title, track.artist].filter(Boolean).join(" "));
+  const [pickerMessage, setPickerMessage] = useState("");
   const liked = isLiked(track.id);
   const downloaded = isDownloaded(track.id);
 
-  const saveMirror = async (mirror: MirrorCandidate) => {
+  const saveMirror = async (mirror: MirrorCandidate, saveAsOriginal: boolean) => {
     setBusy(true);
     try {
-      const trackToSave: UnifiedTrack = {
-        ...track,
-        source: mirror.source,
-        streamUrl: mirror.streamUrl,
-        artwork: mirror.artwork || track.artwork,
-        duration: mirror.duration || track.duration,
-      };
+      const trackToSave: UnifiedTrack = saveAsOriginal
+        ? {
+            ...track,
+            source: mirror.source,
+            streamUrl: mirror.streamUrl,
+            artwork: mirror.artwork || track.artwork,
+            duration: mirror.duration || track.duration,
+          }
+        : mirror;
       const url = `/api/public/proxy?u=${encodeURIComponent(mirror.streamUrl!)}`;
       await saveDownload(trackToSave, url);
-      toast.success(`Downloaded offline from ${mirror.source}`);
+      toast.success(saveAsOriginal ? `Downloaded offline from ${mirror.source}` : "Saved selected track offline");
       setPickerOpen(false);
     } catch {
       toast.error("Download failed. Try another match.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openMirrorPicker = async (query = candidateQuery, strict = false) => {
+    setBusy(true);
+    try {
+      const result = await fetchAlternatives({
+        data: {
+          title: track.title,
+          artist: track.artist,
+          duration: track.duration,
+          query,
+          strict,
+        },
+      });
+      setCandidates(result.tracks as MirrorCandidate[]);
+      setPickerMessage(
+        result.verifiedCount > 0
+          ? "Verified full-song matches are shown first."
+          : "No exact full-song match was confirmed. Preview and save a selected Jamendo/Audius track instead.",
+      );
+      setPickerOpen(true);
+    } catch {
+      setCandidates([]);
+      setPickerMessage("Search could not load downloadable matches right now.");
+      setPickerOpen(true);
     } finally {
       setBusy(false);
     }
@@ -89,19 +125,21 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
     setBusy(true);
     try {
       if (track.source === "youtube" || track.source === "deezer") {
-        const { tracks, verifiedCount } = await downloadableAlternatives({
-          data: { title: track.title, artist: track.artist, duration: track.duration },
+        const { tracks, verifiedCount } = await fetchAlternatives({
+          data: { title: track.title, artist: track.artist, duration: track.duration, strict: true },
         });
-        if (!tracks.length) {
-          throw new Error("No downloadable match found on Jamendo or Audius for this track.");
-        }
         const verified = tracks.find((t) => (t as MirrorCandidate).verified);
         if (verified && verifiedCount === 1) {
-          await saveMirror(verified as MirrorCandidate);
+          await saveMirror(verified as MirrorCandidate, true);
           return;
         }
-        // Multiple candidates or none verified — let the user pick.
+        setCandidateQuery([track.title, track.artist].filter(Boolean).join(" "));
         setCandidates(tracks as MirrorCandidate[]);
+        setPickerMessage(
+          tracks.length
+            ? "No single exact match was safe to auto-save. Pick and preview a downloadable full track."
+            : "No exact mirror was found automatically. Search Jamendo/Audius and save the correct track manually.",
+        );
         setPickerOpen(true);
         return;
       }
@@ -200,30 +238,53 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
         <DialogHeader>
           <DialogTitle>Pick a downloadable match</DialogTitle>
           <DialogDescription>
-            {track.source === "youtube" ? "YouTube" : "Deezer"} blocks full offline saves. Choose the best match from Jamendo/Audius to store offline.
+            {track.source === "youtube" ? "YouTube" : "Deezer"} blocks full offline saves. {pickerMessage}
           </DialogDescription>
         </DialogHeader>
-        <ul className="max-h-80 divide-y divide-border overflow-y-auto rounded-md border border-border">
-          {candidates.map((c) => (
-            <li key={c.id} className="flex items-center gap-3 p-3">
-              <div className="h-10 w-10 shrink-0 overflow-hidden rounded bg-muted">
-                {c.artwork && <img src={c.artwork} alt="" className="h-full w-full object-cover" />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {c.title}
-                  {c.verified && <span className="ml-2 text-[10px] uppercase text-primary">verified</span>}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {c.artist} · {c.source} · {Math.round(c.duration)}s
-                </p>
-              </div>
-              <Button size="sm" disabled={busy} onClick={() => saveMirror(c)}>
-                Save
-              </Button>
-            </li>
-          ))}
-        </ul>
+        <div className="flex gap-2">
+          <Input
+            value={candidateQuery}
+            onChange={(e) => setCandidateQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") openMirrorPicker(candidateQuery, false);
+            }}
+            placeholder="Search Jamendo or Audius"
+          />
+          <Button type="button" size="icon" disabled={busy} onClick={() => openMirrorPicker(candidateQuery, false)} aria-label="Search matches">
+            <Search className="h-4 w-4" />
+          </Button>
+        </div>
+        {candidates.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            No downloadable Jamendo/Audius result yet.
+          </div>
+        ) : (
+          <ul className="max-h-80 divide-y divide-border overflow-y-auto rounded-md border border-border">
+            {candidates.map((c) => (
+              <li key={c.id} className="flex items-center gap-3 p-3">
+                <div className="h-10 w-10 shrink-0 overflow-hidden rounded bg-muted">
+                  {c.artwork && <img src={c.artwork} alt="" className="h-full w-full object-cover" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {c.title}
+                    {c.verified && <span className="ml-2 text-[10px] uppercase text-primary">verified</span>}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {c.artist} · {c.source} · {Math.round(c.duration)}s
+                    {!c.verified && c.matchScore != null ? ` · ${Math.round(c.matchScore * 100)}%` : ""}
+                  </p>
+                </div>
+                <Button size="sm" variant="secondary" disabled={busy} onClick={() => playTrack(c)}>
+                  Preview
+                </Button>
+                <Button size="sm" disabled={busy} onClick={() => saveMirror(c, Boolean(c.verified))}>
+                  Save
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
         <DialogFooter>
           <Button variant="ghost" onClick={() => setPickerOpen(false)}>Cancel</Button>
         </DialogFooter>
