@@ -218,7 +218,8 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           }
 
           // Ranged (streaming/playback) path — used by the audio element.
-          const requestedRange = parseRequestRange(range);
+          const effectiveRange = range ?? `bytes=0-${CHUNK_SIZE - 1}`;
+          const requestedRange = parseRequestRange(effectiveRange);
           const directAudio = await fetchYoutubeiAudio(videoId, requestedRange ?? undefined);
           if (directAudio) {
             const headers = new Headers({
@@ -244,7 +245,7 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           const streamUrl = await resolvePipedStream(videoId);
           if (!streamUrl) return textResponse("YouTube stream unavailable", 503);
 
-          const upstream = await fetchUpstreamRange(streamUrl, normalizeRange(range));
+          const upstream = await fetchUpstreamRange(streamUrl, normalizeRange(effectiveRange));
           if (!upstream.ok) {
             return textResponse(FULL_YOUTUBE_DOWNLOAD_BLOCKED, YOUTUBE_UNAVAILABLE_STATUS);
           }
