@@ -142,7 +142,65 @@ async function fetchCompleteAudio(streamUrl: string) {
   }
 
   return { body: concatChunks(chunks, total), contentType, total };
+
+// Snaptube-style resolver: Cobalt is an open-source YouTube/social media
+// downloader with public API instances. It handles PoToken/signature on their
+// side, so full audio streams are returned even when direct Worker fetches
+// get throttled to 1MB stubs.
+const COBALT_INSTANCES = [
+  "https://cobalt-backend.canine.tools",
+  "https://co.eepy.today",
+  "https://dl01.yt-dl.click",
+  "https://api.cobalt.tools",
+];
+
+async function fetchViaCobalt(
+  videoId: string,
+): Promise<{ body: ArrayBuffer; contentType: string } | null> {
+  const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  for (const instance of COBALT_INSTANCES) {
+    try {
+      const resp = await fetch(instance + "/", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          "user-agent": "Mozilla/5.0",
+        },
+        body: JSON.stringify({
+          url: youtubeUrl,
+          downloadMode: "audio",
+          audioFormat: "mp3",
+          filenameStyle: "basic",
+          youtubeVideoCodec: "h264",
+        }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!resp.ok) continue;
+      const data = (await resp.json().catch(() => null)) as
+        | { status?: string; url?: string }
+        | null;
+      if (!data?.url || (data.status !== "tunnel" && data.status !== "redirect" && data.status !== "stream")) {
+        continue;
+      }
+      const media = await fetch(data.url, {
+        headers: { accept: "audio/*,*/*;q=0.8" },
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (!media.ok) continue;
+      const body = await media.arrayBuffer();
+      if (body.byteLength < MIN_FULL_DOWNLOAD_BYTES) continue;
+      return {
+        body,
+        contentType: media.headers.get("content-type") ?? "audio/mpeg",
+      };
+    } catch {
+      // Try next instance
+    }
+  }
+  return null;
 }
+
 
 export const Route = createFileRoute("/api/public/youtube-audio")({
   server: {
