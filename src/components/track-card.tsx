@@ -44,6 +44,9 @@ type MirrorCandidate = UnifiedTrack & { verified?: boolean; matchScore?: number 
 
 const RELIABLE_MIRROR_SCORE = 0.65;
 
+const isReliableMirror = (candidate: MirrorCandidate) =>
+  Boolean(candidate.verified) || (candidate.matchScore ?? 0) >= RELIABLE_MIRROR_SCORE;
+
 
 const sourceColors: Record<string, string> = {
   youtube: "bg-red-500/20 text-red-300",
@@ -103,16 +106,16 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
         },
       });
       const tracks = result.tracks as MirrorCandidate[];
-      const hasReliableMatch = tracks.some(
-        (candidate) => candidate.verified || (candidate.matchScore ?? 0) >= RELIABLE_MIRROR_SCORE,
-      );
-      setCandidates(tracks);
+      const reliableTracks = tracks.filter(isReliableMirror);
+      const hasReliableMatch = reliableTracks.length > 0;
+      const displayTracks = strict ? reliableTracks : tracks;
+      setCandidates(displayTracks);
       setPickerMessage(
         result.verifiedCount > 0
           ? "Verified full-song matches are shown first."
           : hasReliableMatch
             ? "Close full-song matches are shown first. Preview before saving."
-            : "No safe full-song match was found, so unrelated beats are hidden unless you search manually.",
+            : "No safe full-song match was found. Search manually if you want to preview other downloadable results.",
       );
       if (openWhenWeak || hasReliableMatch) setPickerOpen(true);
       return { tracks, verifiedCount: result.verifiedCount, hasReliableMatch };
@@ -145,10 +148,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
           const q = [track.title, track.artist].filter(Boolean).join(" ");
           setCandidateQuery(q);
           setCandidates([]);
-          const result = await openMirrorPicker(q, true, false);
-          if (!result.hasReliableMatch) {
-            toast.error("YouTube blocked the full save, and no safe full-song match was found.");
-          }
+          await openMirrorPicker(q, true, true);
           return;
         }
       }
@@ -156,10 +156,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
         const q = [track.title, track.artist].filter(Boolean).join(" ");
         setCandidateQuery(q);
         setCandidates([]);
-        const result = await openMirrorPicker(q, true, false);
-        if (!result.hasReliableMatch) {
-          toast.error("Deezer only has a 30s preview here, and no safe full-song match was found.");
-        }
+        await openMirrorPicker(q, true, true);
         return;
       }
       const url = track.streamUrl
@@ -254,7 +251,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
         <DialogHeader>
           <DialogTitle>Pick a downloadable match</DialogTitle>
           <DialogDescription>
-            {track.source === "youtube" ? "YouTube" : "Deezer"} blocks full offline saves. {pickerMessage}
+            {track.source === "youtube" ? "YouTube" : "Deezer"} blocks full offline saves here. {pickerMessage}
           </DialogDescription>
         </DialogHeader>
         <div className="flex gap-2">
@@ -272,7 +269,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
         </div>
         {candidates.length === 0 ? (
           <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            No downloadable Jamendo/Audius result yet.
+            No safe Jamendo/Audius full-song match yet.
           </div>
         ) : (
           <ul className="max-h-80 divide-y divide-border overflow-y-auto rounded-md border border-border">
@@ -294,7 +291,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
                 <Button size="sm" variant="secondary" disabled={busy} onClick={() => playTrack(c)}>
                   Preview
                 </Button>
-                <Button size="sm" disabled={busy} onClick={() => saveMirror(c, Boolean(c.verified))}>
+                <Button size="sm" disabled={busy} onClick={() => saveMirror(c, isReliableMirror(c))}>
                   Save
                 </Button>
               </li>
