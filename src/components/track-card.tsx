@@ -14,7 +14,6 @@ import {
 import { usePlayer, type UnifiedTrack } from "@/lib/player-context";
 import { useLiked, usePlaylists } from "@/lib/library-store";
 import { useDownloads, saveDownload, deleteDownload } from "@/lib/downloads-store";
-import { resolveYoutubeStream } from "@/lib/music-sources.functions";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -56,11 +55,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       let url = track.streamUrl;
       if (track.source === "youtube") {
         const videoId = track.id.replace(/^youtube:/, "");
-        const res = await resolveYoutubeStream({ data: { videoId } });
-        if (!res.streamUrl) {
-          throw new Error("YouTube offline download is unavailable for this track right now.");
-        }
-        url = `/api/public/proxy?u=${encodeURIComponent(res.streamUrl)}`;
+        url = `/api/public/youtube-audio?videoId=${encodeURIComponent(videoId)}`;
       } else if (url) {
         // Route through proxy to bypass CORS on arbitrary hosts.
         url = `/api/public/proxy?u=${encodeURIComponent(url)}`;
@@ -70,7 +65,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       toast.success("Downloaded for offline");
     } catch (error) {
       const message =
-        error instanceof Error && error.message.includes("YouTube")
+        error instanceof Error && /youtube/i.test(error.message)
           ? error.message
           : "Download failed. Try Jamendo, Audius, or Deezer if this source blocks saving.";
       toast.error(message);
