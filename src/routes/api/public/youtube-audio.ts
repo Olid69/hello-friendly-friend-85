@@ -56,7 +56,15 @@ function concatChunks(chunks: Uint8Array[], total: number) {
 
 async function fetchUpstreamRange(streamUrl: string, range: string) {
   const url = new URL(streamUrl);
-  url.searchParams.delete("range");
+  const match = /^bytes=(\d+)-(\d+)$/i.exec(range);
+  if (match) {
+    // Google/YouTube signed media URLs often authorize a byte interval via a
+    // query-string `range` value. Rewriting that query is more reliable than
+    // only sending an HTTP Range header for follow-up chunks.
+    url.searchParams.set("range", `${match[1]}-${match[2]}`);
+  } else {
+    url.searchParams.delete("range");
+  }
   return fetch(url.toString(), {
     headers: {
       accept: "audio/*,video/*,*/*;q=0.8",
