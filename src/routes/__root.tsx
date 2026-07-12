@@ -14,6 +14,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppLayout } from "../components/app-layout";
 import { PlayerProvider } from "../lib/player-context";
 import { Toaster } from "../components/ui/sonner";
+import { AuthProvider } from "../lib/auth-context";
+import { supabase } from "../integrations/supabase/client";
 
 function NotFoundComponent() {
   return (
@@ -135,15 +137,28 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
+
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+        router.invalidate();
+        if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
+      }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [queryClient, router]);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PlayerProvider>
-        <AppLayout>
-          <Outlet />
-        </AppLayout>
-        <Toaster />
-      </PlayerProvider>
+      <AuthProvider>
+        <PlayerProvider>
+          <AppLayout>
+            <Outlet />
+          </AppLayout>
+          <Toaster />
+        </PlayerProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

@@ -9,6 +9,8 @@ import {
 } from "react";
 import { attachEqualizer } from "./equalizer";
 import { getDownloadBlobUrl } from "./downloads-store";
+import { pushRecentCloud } from "./library.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 
 export type TrackSource = "youtube" | "jamendo" | "audius" | "fma" | "deezer";
@@ -216,7 +218,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!current) return;
     let cancelled = false;
 
-    // Track recent plays (persist to localStorage).
+    // Track recent plays (persist to localStorage + cloud if signed in).
     if (typeof window !== "undefined") {
       try {
         const raw = window.localStorage.getItem("sonora.recent");
@@ -225,6 +227,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         window.localStorage.setItem("sonora.recent", JSON.stringify(next));
         window.dispatchEvent(new CustomEvent("sonora:store", { detail: "sonora.recent" }));
       } catch {}
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          pushRecentCloud({ data: { track: current } }).catch(() => {});
+        }
+      });
     }
 
     const load = async () => {
