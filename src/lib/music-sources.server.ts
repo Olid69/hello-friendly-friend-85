@@ -160,38 +160,89 @@ export async function searchPiped(query: string): Promise<UnifiedTrack[]> {
     });
 }
 
+const INVIDIOUS_INSTANCES = [
+  "https://inv.nadeko.net",
+  "https://invidious.nerdvpn.de",
+  "https://invidious.jing.rocks",
+  "https://iv.melmac.space",
+  "https://invidious.private.coffee",
+  "https://yewtu.be",
+];
+
+function pickAudio(audios: Array<{ url?: string; bitrate?: number }>): string | null {
+  const playable = audios.filter((a) => a.url);
+  if (!playable.length) return null;
+  playable.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
+  return playable[0]?.url ?? null;
+}
+
 export async function resolvePipedStream(
   videoId: string,
 ): Promise<string | null> {
-  const json = await pipedFetch(`/streams/${encodeURIComponent(videoId)}`);
-  const audios = (json?.audioStreams ?? []) as Array<{
-    url?: string;
-    bitrate?: number;
-    mimeType?: string;
-  }>;
-  const playable = audios.filter((audio) => audio.url);
-  if (playable.length > 0) {
-    playable.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
-    return playable[0]?.url ?? null;
+  // Try each Piped instance directly — don't stop at the first that returns
+  // JSON, because many instances now return empty streams for YouTube.
+  for (const base of PIPED_INSTANCES) {
+    try {
+      const res = await fetch(`${base}/streams/${encodeURIComponent(videoId)}`, {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(7000),
+      });
+      if (!res.ok) continue;
+      const json = (await res.json()) as any;
+      const audio = pickAudio(json?.audioStreams ?? []);
+      if (audio) return audio;
+      const videos = (json?.videoStreams ?? []) as Array<{
+        url?: string;
+        quality?: string;
+        videoOnly?: boolean;
+      }>;
+      const muxed = videos.filter((v) => v.url && !v.videoOnly);
+      if (muxed.length) {
+        muxed.sort((a, b) => {
+          const aq = Number.parseInt(a.quality ?? "0", 10) || 0;
+          const bq = Number.parseInt(b.quality ?? "0", 10) || 0;
+          return aq - bq;
+        });
+        if (muxed[0]?.url) return muxed[0].url;
+      }
+    } catch {
+      continue;
+    }
   }
 
-  // Some Piped instances return YouTube Music tracks as a muxed MP4 only.
-  // HTMLAudioElement can still play that URL as audio, so use it as fallback.
-  const videos = (json?.videoStreams ?? []) as Array<{
-    url?: string;
-    quality?: string;
-    videoOnly?: boolean;
-    mimeType?: string;
-  }>;
-  const muxed = videos.filter((video) => video.url && !video.videoOnly);
-  if (muxed.length === 0) return null;
-  muxed.sort((a, b) => {
-    const aq = Number.parseInt(a.quality ?? "0", 10) || 0;
-    const bq = Number.parseInt(b.quality ?? "0", 10) || 0;
-    return aq - bq;
-  });
-  return muxed[0]?.url ?? null;
+  // Fallback: Invidious instances expose adaptiveFormats with direct URLs.
+  for (const base of INVIDIOUS_INSTANCES) {
+    try {
+      const res = await fetch(
+        `${base}/api/v1/videos/${encodeURIComponent(videoId)}?fields=adaptiveFormats,formatStreams`,
+        {
+          headers: { accept: "application/json" },
+          signal: AbortSignal.timeout(7000),
+        },
+      );
+      if (!res.ok) continue;
+      const json = (await res.json()) as any;
+      const adaptive = (json?.adaptiveFormats ?? []) as Array<{
+        url?: string;
+        type?: string;
+        bitrate?: string | number;
+      }>;
+      const audios = adaptive
+        .filter((f) => f.url && (f.type ?? "").startsWith("audio"))
+        .map((f) => ({ url: f.url, bitrate: Number(f.bitrate) || 0 }));
+      const audio = pickAudio(audios);
+      if (audio) return audio;
+      const formats = (json?.formatStreams ?? []) as Array<{ url?: string }>;
+      const muxed = formats.find((f) => f.url);
+      if (muxed?.url) return muxed.url;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
 }
+
 
 // ---------- Deezer (30s previews via public API) ----------
 export async function searchDeezer(
