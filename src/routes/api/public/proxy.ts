@@ -56,7 +56,6 @@ export const Route = createFileRoute("/api/public/proxy")({
           const body = await upstream.arrayBuffer();
           const headers = new Headers({
             "content-type": upstream.headers.get("content-type") ?? "audio/mpeg",
-            "content-length": String(body.byteLength),
             "cache-control": "no-store",
             ...CORS_HEADERS,
           });
