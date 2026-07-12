@@ -122,39 +122,25 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       toast.success("Removed from downloads");
       return;
     }
+    if (track.source === "youtube" || track.source === "deezer") {
+      const q = [track.title, track.artist].filter(Boolean).join(" ");
+      setCandidateQuery(q);
+      setCandidates([]);
+      setPickerMessage("Preview and pick the correct full track before saving.");
+      setPickerOpen(true);
+      await openMirrorPicker(q, false);
+      return;
+    }
     setBusy(true);
     try {
-      if (track.source === "youtube" || track.source === "deezer") {
-        const { tracks, verifiedCount } = await fetchAlternatives({
-          data: { title: track.title, artist: track.artist, duration: track.duration, strict: true },
-        });
-        const verified = tracks.find((t) => (t as MirrorCandidate).verified);
-        if (verified && verifiedCount === 1) {
-          await saveMirror(verified as MirrorCandidate, true);
-          return;
-        }
-        setCandidateQuery([track.title, track.artist].filter(Boolean).join(" "));
-        setCandidates(tracks as MirrorCandidate[]);
-        setPickerMessage(
-          tracks.length
-            ? "No single exact match was safe to auto-save. Pick and preview a downloadable full track."
-            : "No exact mirror was found automatically. Search Jamendo/Audius and save the correct track manually.",
-        );
-        setPickerOpen(true);
-        return;
-      }
       const url = track.streamUrl
         ? `/api/public/proxy?u=${encodeURIComponent(track.streamUrl)}`
         : null;
       if (!url) throw new Error("no stream");
       await saveDownload(track, url);
       toast.success("Downloaded for offline");
-    } catch (error) {
-      const message =
-        error instanceof Error && /(youtube|offline|blocked|verified|match|different beat)/i.test(error.message)
-          ? error.message
-          : "Download failed. Try Jamendo, Audius, or Deezer if this source blocks saving.";
-      toast.error(message);
+    } catch {
+      toast.error("Download failed. Try Jamendo, Audius, or Deezer if this source blocks saving.");
     } finally {
       setBusy(false);
     }
