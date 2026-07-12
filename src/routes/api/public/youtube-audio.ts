@@ -142,6 +142,7 @@ async function fetchCompleteAudio(streamUrl: string) {
   }
 
   return { body: concatChunks(chunks, total), contentType, total };
+}
 
 // Snaptube-style resolver: Cobalt is an open-source YouTube/social media
 // downloader with public API instances. It handles PoToken/signature on their
