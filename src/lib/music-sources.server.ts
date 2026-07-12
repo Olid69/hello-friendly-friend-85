@@ -299,10 +299,20 @@ async function decipherYoutubeFormatUrl(
   }
 }
 
+// Minimum plausible bytes for a full song of `durationSec` seconds.
+// Uses ~64kbps floor (8000 B/s). Rejects the classic 1MB throttled stub.
+function minPlausibleAudioBytes(durationSec?: number) {
+  const dur = durationSec && durationSec > 0 ? durationSec : 0;
+  if (!dur) return 900 * 1024; // no duration hint: still reject <900KB
+  // 64kbps floor for audio; muxed MP4 with video will be much larger anyway.
+  return Math.max(900 * 1024, Math.floor(dur * 8_000));
+}
+
 async function fetchWholeYoutubeFormat(
   format: any,
   innertube: Awaited<ReturnType<typeof Innertube.create>>,
   poToken?: string,
+  durationSec?: number,
 ) {
   const rawUrl = await decipherYoutubeFormatUrl(format, innertube, poToken);
   if (!rawUrl) return null;
@@ -339,6 +349,8 @@ async function fetchWholeYoutubeFormat(
       ? body.byteLength >= Math.floor(contentLength * 0.98)
       : body.byteLength > YT_CHUNK + 64 * 1024;
     if (!complete) return null;
+    // Duration sanity: reject throttled 1MB stubs that lie about content-length.
+    if (body.byteLength < minPlausibleAudioBytes(durationSec)) return null;
     return {
       body,
       contentType: getYoutubeFormatContentType(format),
@@ -433,13 +445,19 @@ export async function fetchYoutubeiAudio(
       }
 
       const info = await innertube.getBasicInfo(videoId, poToken ? { po_token: poToken } : undefined);
+      const durationSec = Number(
+        (info as any)?.basic_info?.duration ??
+          (info as any)?.videoDetails?.lengthSeconds ??
+          0,
+      ) || undefined;
+      const minBytes = minPlausibleAudioBytes(durationSec);
 
       // Full offline save: first try progressive MP4 (audio+video) formats.
       // Mobile YouTube clients still expose these as one complete file, while
       // modern audio-only GVS links often require a PO token after the first 1MB.
       if (!range) {
         for (const progressiveFormat of getProgressiveYoutubeFormats(info)) {
-          const direct = await fetchWholeYoutubeFormat(progressiveFormat, innertube, poToken);
+          const direct = await fetchWholeYoutubeFormat(progressiveFormat, innertube, poToken, durationSec);
           if (direct) return direct;
         }
       }
@@ -491,7 +509,8 @@ export async function fetchYoutubeiAudio(
           const complete = contentLength
             ? body.byteLength >= Math.floor(contentLength * 0.98)
             : body.byteLength > YT_CHUNK + 64 * 1024; // >1MB stub guard
-          if (complete) {
+          // Duration sanity: reject stubs that "match" a lied-about content-length.
+          if (complete && body.byteLength >= minBytes) {
             return { body, contentType, contentLength: contentLength ?? body.byteLength };
           }
         }
@@ -543,6 +562,8 @@ export async function fetchYoutubeiAudio(
         ? downloaded >= Math.floor(contentLength * 0.98)
         : sawShortChunk;
       if (!looksComplete) continue;
+      // Duration sanity: still reject a throttled ~1MB stub even when it looks "complete".
+      if (downloaded < minBytes) continue;
 
       const merged = new Uint8Array(downloaded);
       let offset = 0;

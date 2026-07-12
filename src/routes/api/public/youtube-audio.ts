@@ -10,6 +10,9 @@ const CORS_HEADERS = {
 const CHUNK_SIZE = 1024 * 1024;
 const MAX_DOWNLOAD_BYTES = 80 * 1024 * 1024;
 const MIN_COMPLETE_DOWNLOAD_BYTES = CHUNK_SIZE + 64 * 1024;
+// Any full-song audio is well over 1.5MB. Anything below this is the classic
+// YouTube ~1MB throttled stub (no PoToken), never a real complete track.
+const MIN_FULL_DOWNLOAD_BYTES = 1_500_000;
 const YOUTUBE_UNAVAILABLE_STATUS = 424;
 const FULL_YOUTUBE_DOWNLOAD_BLOCKED =
   "Full YouTube offline download is currently blocked by YouTube. Stream this track online or download from Jamendo, Audius, or Deezer.";
@@ -161,7 +164,11 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           // fall back to chunked fetching of the Piped/Invidious signed URL.
           if (forceDownload && !range) {
             const fullAudio = await fetchYoutubeiAudio(videoId).catch(() => null);
-            if (fullAudio && isCompleteDownload(fullAudio.body.byteLength, fullAudio.contentLength)) {
+            if (
+              fullAudio &&
+              fullAudio.body.byteLength >= MIN_FULL_DOWNLOAD_BYTES &&
+              isCompleteDownload(fullAudio.body.byteLength, fullAudio.contentLength)
+            ) {
               return new Response(fullAudio.body, {
                 status: 200,
                 headers: {
@@ -178,7 +185,11 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
             if (streamUrl) {
               try {
                 const complete = await fetchCompleteAudio(streamUrl);
-                if (complete.body && isCompleteDownload(complete.body.byteLength, complete.total)) {
+                if (
+                  complete.body &&
+                  complete.body.byteLength >= MIN_FULL_DOWNLOAD_BYTES &&
+                  isCompleteDownload(complete.body.byteLength, complete.total)
+                ) {
                   return new Response(complete.body, {
                     status: 200,
                     headers: {
@@ -201,7 +212,10 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
               if (single && single.ok) {
                 const body = await single.arrayBuffer();
                 const expectedLength = Number(single.headers.get("content-length")) || getContentLengthFromUrl(streamUrl);
-                if (isCompleteDownload(body.byteLength, expectedLength)) {
+                if (
+                  body.byteLength >= MIN_FULL_DOWNLOAD_BYTES &&
+                  isCompleteDownload(body.byteLength, expectedLength)
+                ) {
                   return new Response(body, {
                     status: 200,
                     headers: {
