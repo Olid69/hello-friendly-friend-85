@@ -1,8 +1,20 @@
 import { useState } from "react";
-import { Play, Music2, MoreVertical, Heart, Download, ListPlus, Check } from "lucide-react";
+import {
+  Play,
+  Music2,
+  MoreVertical,
+  Heart,
+  Download,
+  ListPlus,
+  Check,
+  ListEnd,
+  ListStart,
+  X,
+} from "lucide-react";
 import { usePlayer, type UnifiedTrack } from "@/lib/player-context";
 import { useLiked, usePlaylists } from "@/lib/library-store";
 import { useDownloads, saveDownload, deleteDownload } from "@/lib/downloads-store";
+import { resolveYoutubeStream } from "@/lib/music-sources.functions";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -28,6 +40,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
   const { isLiked, toggleLike } = useLiked();
   const { playlists, create, addTrack } = usePlaylists();
   const { isDownloaded } = useDownloads();
+  const { playTrack, addToQueue, playNext } = usePlayer();
   const [busy, setBusy] = useState(false);
   const liked = isLiked(track.id);
   const downloaded = isDownloaded(track.id);
@@ -38,14 +51,20 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       toast.success("Removed from downloads");
       return;
     }
-    if (track.source === "youtube") {
-      toast.error("YouTube tracks can't be downloaded (streaming only).");
-      return;
-    }
-    if (!track.streamUrl) return;
     setBusy(true);
     try {
-      await saveDownload(track, track.streamUrl);
+      let url = track.streamUrl;
+      if (track.source === "youtube") {
+        const videoId = track.id.replace(/^youtube:/, "");
+        const res = await resolveYoutubeStream({ data: { videoId } });
+        if (!res.streamUrl) throw new Error("resolve failed");
+        url = `/api/public/proxy?u=${encodeURIComponent(res.streamUrl)}`;
+      } else if (url) {
+        // Route through proxy to bypass CORS on arbitrary hosts.
+        url = `/api/public/proxy?u=${encodeURIComponent(url)}`;
+      }
+      if (!url) throw new Error("no stream");
+      await saveDownload(track, url);
       toast.success("Downloaded for offline");
     } catch {
       toast.error("Download failed");
@@ -65,8 +84,21 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
           <MoreVertical className="h-4 w-4" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent onClick={(e) => e.stopPropagation()} align="end">
-        <DropdownMenuItem onClick={() => toggleLike(track)}>
+      <DropdownMenuContent onClick={(e) => e.stopPropagation()} align="end" className="w-56">
+        <DropdownMenuItem onSelect={() => playTrack(track)}>
+          <Play className="mr-2 h-4 w-4" />
+          Play now
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => { playNext(track); toast.success("Playing next"); }}>
+          <ListStart className="mr-2 h-4 w-4" />
+          Play next
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => { addToQueue(track); toast.success("Added to queue"); }}>
+          <ListEnd className="mr-2 h-4 w-4" />
+          Add to queue
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => toggleLike(track)}>
           <Heart className={cn("mr-2 h-4 w-4", liked && "fill-current text-primary")} />
           {liked ? "Remove from Liked" : "Add to Liked"}
         </DropdownMenuItem>
@@ -77,7 +109,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
             <DropdownMenuItem
-              onClick={() => {
+              onSelect={() => {
                 const name = window.prompt("Playlist name?");
                 if (!name) return;
                 const pl = create(name);
@@ -91,7 +123,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
             {playlists.map((p) => (
               <DropdownMenuItem
                 key={p.id}
-                onClick={() => {
+                onSelect={() => {
                   addTrack(p.id, track);
                   toast.success(`Added to ${p.name}`);
                 }}
@@ -102,7 +134,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={busy} onClick={handleDownload}>
+        <DropdownMenuItem disabled={busy} onSelect={(e) => { e.preventDefault(); handleDownload(); }}>
           {downloaded ? (
             <Check className="mr-2 h-4 w-4 text-primary" />
           ) : (
@@ -188,13 +220,19 @@ export function TrackGrid({ tracks }: { tracks: UnifiedTrack[] }) {
 export function TrackList({
   tracks,
   onRemove,
+  emptyLabel,
 }: {
   tracks: UnifiedTrack[];
   onRemove?: (t: UnifiedTrack) => void;
+  emptyLabel?: string;
 }) {
   const { playTrack, current, isPlaying } = usePlayer();
   if (tracks.length === 0) {
-    return <p className="text-sm text-muted-foreground">No tracks yet.</p>;
+    return (
+      <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        {emptyLabel ?? "No tracks yet."}
+      </div>
+    );
   }
   return (
     <ul className="divide-y divide-border rounded-lg bg-card">
@@ -204,7 +242,10 @@ export function TrackList({
           <li
             key={t.id}
             onClick={() => playTrack(t, tracks)}
-            className="flex cursor-pointer items-center gap-3 p-3 hover:bg-secondary/40"
+            className={cn(
+              "flex cursor-pointer items-center gap-3 p-3 transition-colors hover:bg-secondary/40",
+              active && "bg-secondary/30",
+            )}
           >
             <span className="w-6 text-center text-xs tabular-nums text-muted-foreground">
               {active && isPlaying ? "▶" : idx + 1}
@@ -235,9 +276,10 @@ export function TrackList({
                   e.stopPropagation();
                   onRemove(t);
                 }}
-                className="text-xs text-muted-foreground hover:text-destructive"
+                className="rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-destructive"
+                aria-label="Remove"
               >
-                ✕
+                <X className="h-4 w-4" />
               </button>
             )}
           </li>

@@ -26,7 +26,7 @@ function RecentPage() {
           </button>
         )}
       </div>
-      <TrackList tracks={recent} />
+      <TrackList tracks={recent} emptyLabel="No listening history yet. Play something!" />
     </div>
   );
 }

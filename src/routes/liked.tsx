@@ -24,7 +24,11 @@ function LikedPage() {
           </p>
         </div>
       </div>
-      <TrackList tracks={liked} onRemove={(t) => toggleLike(t)} />
+      <TrackList
+        tracks={liked}
+        onRemove={(t) => toggleLike(t)}
+        emptyLabel="No liked songs yet. Tap the heart on any track."
+      />
     </div>
   );
 }
