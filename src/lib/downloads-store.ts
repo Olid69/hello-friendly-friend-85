@@ -100,21 +100,20 @@ async function fetchBlobInChunks(url: string): Promise<Blob> {
 
 async function fetchBlobWithRetry(url: string, attempts = 3): Promise<Blob> {
   if (url.includes("/api/public/youtube-audio")) {
-    try {
-      return await fetchBlobInChunks(url);
-    } catch {
-      const res = await fetch(url, {
-        cache: "no-store",
-        credentials: "same-origin",
-      });
-      if (!res.ok) {
-        const details = await res.text().catch(() => "");
-        throw new Error(details || `Download failed (${res.status})`);
-      }
-      const blob = await res.blob();
-      if (blob.size === 0) throw new Error("Downloaded file is empty");
-      return blob;
+    // YouTube/Google signed media URLs frequently reject follow-up byte
+    // ranges in this runtime. Do not run the generic chunk loop for this
+    // endpoint; the server intentionally returns one playable offline blob.
+    const res = await fetch(url, {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    if (!res.ok) {
+      const details = await res.text().catch(() => "");
+      throw new Error(details || `Download failed (${res.status})`);
     }
+    const blob = await res.blob();
+    if (blob.size === 0) throw new Error("Downloaded file is empty");
+    return blob;
   }
 
   let lastError: unknown;
