@@ -6,6 +6,7 @@ const STORE = "tracks";
 const VERSION = 1;
 const DOWNLOAD_CHUNK_SIZE = 1024 * 1024;
 const MAX_CHUNKED_DOWNLOAD_BYTES = 80 * 1024 * 1024;
+const MIN_SAFE_YOUTUBE_BYTES = DOWNLOAD_CHUNK_SIZE + 256 * 1024;
 
 export type DownloadedTrack = {
   track: UnifiedTrack;
@@ -85,7 +86,43 @@ async function fetchChunk(url: string, start: number, end: number) {
 async function fetchBlobInChunks(url: string): Promise<Blob> {
   const first = await fetchChunk(url, 0, DOWNLOAD_CHUNK_SIZE - 1);
   const firstRange = first.range;
-  if (!firstRange?.total) return new Blob([first.bytes], { type: first.contentType });
+  if (!firstRange?.total) {
+    if (first.bytes.byteLength > DOWNLOAD_CHUNK_SIZE * 2) {
+      return new Blob([first.bytes], { type: first.contentType });
+    }
+
+    const chunks = [first.bytes];
+    let downloaded = first.bytes.byteLength;
+    let nextStart = firstRange?.end != null ? firstRange.end + 1 : downloaded;
+
+    while (downloaded < MAX_CHUNKED_DOWNLOAD_BYTES) {
+      const end = nextStart + DOWNLOAD_CHUNK_SIZE - 1;
+      const chunk = await fetchChunk(url, nextStart, end);
+      chunks.push(chunk.bytes);
+      downloaded += chunk.bytes.byteLength;
+
+      if (chunk.range?.total) {
+        let rangeNextStart = chunk.range.end + 1;
+        while (rangeNextStart < chunk.range.total) {
+          const rangeEnd = Math.min(rangeNextStart + DOWNLOAD_CHUNK_SIZE - 1, chunk.range.total - 1);
+          const rangeChunk = await fetchChunk(url, rangeNextStart, rangeEnd);
+          chunks.push(rangeChunk.bytes);
+          rangeNextStart = rangeChunk.range?.end != null ? rangeChunk.range.end + 1 : rangeNextStart + rangeChunk.bytes.byteLength;
+        }
+        return new Blob([combineChunks(chunks, chunk.range.total)], { type: first.contentType });
+      }
+
+      nextStart = chunk.range?.end != null ? chunk.range.end + 1 : nextStart + chunk.bytes.byteLength;
+      if (chunk.bytes.byteLength < DOWNLOAD_CHUNK_SIZE) break;
+    }
+
+    const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    if (total <= MIN_SAFE_YOUTUBE_BYTES) {
+      throw new Error("YouTube returned only the first audio chunk, not the full song.");
+    }
+    return new Blob([combineChunks(chunks, total)], { type: first.contentType });
+  }
+
   const total = firstRange.total;
   if (total > MAX_CHUNKED_DOWNLOAD_BYTES) {
     throw new Error("This YouTube file is too large for offline download.");
@@ -105,20 +142,7 @@ async function fetchBlobInChunks(url: string): Promise<Blob> {
 
 async function fetchBlobWithRetry(url: string, attempts = 3): Promise<Blob> {
   if (url.includes("/api/public/youtube-audio")) {
-    // YouTube/Google signed media URLs frequently reject follow-up byte
-    // ranges in this runtime. Do not run the generic chunk loop for this
-    // endpoint; the server intentionally returns one playable offline blob.
-    const res = await fetch(url, {
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-    if (!res.ok) {
-      const details = await res.text().catch(() => "");
-      throw new Error(details || `Download failed (${res.status})`);
-    }
-    const blob = await res.blob();
-    if (blob.size === 0) throw new Error("Downloaded file is empty");
-    return blob;
+    return fetchBlobInChunks(url);
   }
 
   let lastError: unknown;
@@ -154,6 +178,9 @@ export async function saveDownload(track: UnifiedTrack, streamUrl: string) {
   if (isPreviewOnlyDownload(track)) {
     throw new Error("Deezer only provides 30-second previews here. Use Jamendo or Audius for full offline downloads.");
   }
+  if (track.source === "youtube" && blob.size <= MIN_SAFE_YOUTUBE_BYTES) {
+    throw new Error("YouTube returned only a partial file, so it was not saved.");
+  }
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
@@ -188,7 +215,7 @@ export async function listDownloads(): Promise<DownloadedTrack[]> {
   db.close();
   const downloads = items as DownloadedTrack[];
   const incompleteIds = downloads
-    .filter((item) => isPreviewOnlyDownload(item.track))
+    .filter((item) => isPreviewOnlyDownload(item.track) || (item.track.source === "youtube" && item.blob.size <= MIN_SAFE_YOUTUBE_BYTES))
     .map((item) => item.track.id);
   if (incompleteIds.length) {
     await Promise.allSettled(incompleteIds.map((id) => deleteDownload(id)));
@@ -206,7 +233,7 @@ export async function getDownloadBlobUrl(id: string): Promise<string | null> {
   });
   db.close();
   if (!item) return null;
-  if (isPreviewOnlyDownload(item.track)) {
+  if (isPreviewOnlyDownload(item.track) || (item.track.source === "youtube" && item.blob.size <= MIN_SAFE_YOUTUBE_BYTES)) {
     await deleteDownload(id);
     return null;
   }
