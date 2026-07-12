@@ -366,7 +366,30 @@ export async function fetchYoutubeiAudio(
         };
       }
 
-      // ---- Full download: loop chunks against the same deciphered URL ----
+      // ---- Full download: prefer youtubei.js's own streaming pipeline. It
+      // handles n-parameter rotation + sequential range continuation the way
+      // YouTube's player expects, which no manual loop can reliably reproduce
+      // without a valid PoToken.
+      try {
+        const stream = (await info.download({
+          type: "audio",
+          quality: "best",
+          format: "any",
+        } as any)) as ReadableStream<Uint8Array>;
+        const body = await streamToArrayBuffer(stream);
+        if (body.byteLength > 0) {
+          const complete = contentLength
+            ? body.byteLength >= Math.floor(contentLength * 0.98)
+            : body.byteLength > YT_CHUNK + 64 * 1024; // >1MB stub guard
+          if (complete) {
+            return { body, contentType, contentLength: contentLength ?? body.byteLength };
+          }
+        }
+      } catch {
+        // fall through to manual chunk loop
+      }
+
+      // ---- Manual chunk loop (final attempt) ----
       const total = contentLength && contentLength > 0 ? contentLength : YT_MAX_TOTAL;
       if (total > YT_MAX_TOTAL) continue;
 
