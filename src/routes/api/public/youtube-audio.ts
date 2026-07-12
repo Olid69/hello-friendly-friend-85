@@ -9,6 +9,7 @@ const CORS_HEADERS = {
 
 const CHUNK_SIZE = 1024 * 1024;
 const MAX_DOWNLOAD_BYTES = 80 * 1024 * 1024;
+const YOUTUBE_UNAVAILABLE_STATUS = 424;
 
 function textResponse(message: string, status: number) {
   return new Response(message, {
@@ -134,6 +135,29 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           const range = request.headers.get("range");
           const requestedRange = parseRequestRange(range);
 
+          if (requestedRange && requestedRange.start > 0) {
+            return textResponse("Only the initial YouTube audio range is available for offline saving", 416);
+          }
+
+          if (!range) {
+            const previewAudio = await fetchYoutubeiAudio(videoId, {
+              start: 0,
+              end: CHUNK_SIZE - 1,
+            });
+            if (previewAudio) {
+              return new Response(previewAudio.body, {
+                status: 200,
+                headers: {
+                  "content-type": previewAudio.contentType,
+                  "content-length": String(previewAudio.body.byteLength),
+                  "accept-ranges": "none",
+                  "cache-control": "no-store",
+                  ...CORS_HEADERS,
+                },
+              });
+            }
+          }
+
           const directAudio = await fetchYoutubeiAudio(videoId, requestedRange ?? undefined);
           if (directAudio) {
             const headers = new Headers({
@@ -163,34 +187,15 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
             });
           }
 
-          if (!range) {
-            const previewAudio = await fetchYoutubeiAudio(videoId, {
-              start: 0,
-              end: CHUNK_SIZE - 1,
-            });
-            if (previewAudio) {
-              return new Response(previewAudio.body, {
-                status: 200,
-                headers: {
-                  "content-type": previewAudio.contentType,
-                  "content-length": String(previewAudio.body.byteLength),
-                  "accept-ranges": "none",
-                  "cache-control": "no-store",
-                  ...CORS_HEADERS,
-                },
-              });
-            }
-          }
-
           const streamUrl = await resolvePipedStream(videoId);
           if (!streamUrl) return textResponse("YouTube stream unavailable", 503);
 
           if (!range) {
             const complete = await fetchCompleteAudio(streamUrl);
             if (complete.response && !complete.response.ok) {
-              return textResponse("YouTube media host rejected the stream", 424);
+              return textResponse("YouTube media host rejected the stream", YOUTUBE_UNAVAILABLE_STATUS);
             }
-            if (!complete.body) return textResponse("YouTube download failed", 424);
+            if (!complete.body) return textResponse("YouTube download failed", YOUTUBE_UNAVAILABLE_STATUS);
 
             return new Response(complete.body, {
               status: 200,
@@ -207,7 +212,7 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           const upstream = await fetchUpstreamRange(streamUrl, normalizeRange(range));
 
           if (!upstream.ok) {
-            return textResponse("YouTube media host rejected the stream", 424);
+            return textResponse("YouTube media host rejected the stream", YOUTUBE_UNAVAILABLE_STATUS);
           }
 
           const body = await upstream.arrayBuffer();
@@ -226,7 +231,7 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
             headers,
           });
         } catch {
-          return textResponse("YouTube download failed", 424);
+          return textResponse("YouTube download failed", YOUTUBE_UNAVAILABLE_STATUS);
         }
       },
     },

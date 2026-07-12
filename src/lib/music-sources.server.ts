@@ -306,7 +306,12 @@ export async function fetchYoutubeiAudio(
           const url = new URL(decipheredUrl);
           url.searchParams.set("range", `${range.start}-${range.end ?? range.start + 1048575}`);
           const response = await fetch(url.toString(), {
-            headers: { accept: "audio/*,video/*,*/*;q=0.8" },
+            headers: {
+              accept: "*/*",
+              origin: "https://www.youtube.com",
+              referer: "https://www.youtube.com",
+              DNT: "?1",
+            },
             signal: AbortSignal.timeout(60_000),
           });
           if (!response.ok) continue;
