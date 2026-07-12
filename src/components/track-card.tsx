@@ -122,17 +122,35 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       toast.success("Removed from downloads");
       return;
     }
-    if (track.source === "youtube" || track.source === "deezer") {
-      const q = [track.title, track.artist].filter(Boolean).join(" ");
-      setCandidateQuery(q);
-      setCandidates([]);
-      setPickerMessage("Preview and pick the correct full track before saving.");
-      setPickerOpen(true);
-      await openMirrorPicker(q, false);
-      return;
-    }
     setBusy(true);
     try {
+      if (track.source === "youtube") {
+        const videoId = track.id.replace(/^yt:/, "");
+        const url = `/api/public/youtube-audio?videoId=${encodeURIComponent(videoId)}&download=1`;
+        try {
+          await saveDownload(track, url);
+          toast.success("Downloaded for offline");
+          return;
+        } catch {
+          // fall through to mirror picker if YouTube blocked us
+          const q = [track.title, track.artist].filter(Boolean).join(" ");
+          setCandidateQuery(q);
+          setCandidates([]);
+          setPickerMessage("YouTube blocked the direct save. Pick a Jamendo/Audius mirror instead.");
+          setPickerOpen(true);
+          await openMirrorPicker(q, false);
+          return;
+        }
+      }
+      if (track.source === "deezer") {
+        const q = [track.title, track.artist].filter(Boolean).join(" ");
+        setCandidateQuery(q);
+        setCandidates([]);
+        setPickerMessage("Deezer only serves 30s previews. Pick a full Jamendo/Audius mirror.");
+        setPickerOpen(true);
+        await openMirrorPicker(q, false);
+        return;
+      }
       const url = track.streamUrl
         ? `/api/public/proxy?u=${encodeURIComponent(track.streamUrl)}`
         : null;
@@ -140,11 +158,12 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       await saveDownload(track, url);
       toast.success("Downloaded for offline");
     } catch {
-      toast.error("Download failed. Try Jamendo, Audius, or Deezer if this source blocks saving.");
+      toast.error("Download failed. Try another source.");
     } finally {
       setBusy(false);
     }
   };
+
 
 
   return (
