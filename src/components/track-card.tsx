@@ -124,6 +124,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
 
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
@@ -194,8 +195,44 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Pick a downloadable match</DialogTitle>
+          <DialogDescription>
+            {track.source === "youtube" ? "YouTube" : "Deezer"} blocks full offline saves. Choose the best match from Jamendo/Audius to store offline.
+          </DialogDescription>
+        </DialogHeader>
+        <ul className="max-h-80 divide-y divide-border overflow-y-auto rounded-md border border-border">
+          {candidates.map((c) => (
+            <li key={c.id} className="flex items-center gap-3 p-3">
+              <div className="h-10 w-10 shrink-0 overflow-hidden rounded bg-muted">
+                {c.artwork && <img src={c.artwork} alt="" className="h-full w-full object-cover" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {c.title}
+                  {c.verified && <span className="ml-2 text-[10px] uppercase text-primary">verified</span>}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {c.artist} · {c.source} · {Math.round(c.duration)}s
+                </p>
+              </div>
+              <Button size="sm" disabled={busy} onClick={() => saveMirror(c)}>
+                Save
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setPickerOpen(false)}>Cancel</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
+
 
 export function TrackCard({
   track,
