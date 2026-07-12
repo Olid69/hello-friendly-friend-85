@@ -21,6 +21,7 @@ import { Route as EqualizerRouteImport } from './routes/equalizer'
 import { Route as DownloadsRouteImport } from './routes/downloads'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlaylistsIdRouteImport } from './routes/playlists.$id'
+import { Route as ApiPublicYoutubeAudioRouteImport } from './routes/api/public/youtube-audio'
 import { Route as ApiPublicProxyRouteImport } from './routes/api/public/proxy'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -83,6 +84,11 @@ const PlaylistsIdRoute = PlaylistsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => PlaylistsRoute,
 } as any)
+const ApiPublicYoutubeAudioRoute = ApiPublicYoutubeAudioRouteImport.update({
+  id: '/api/public/youtube-audio',
+  path: '/api/public/youtube-audio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicProxyRoute = ApiPublicProxyRouteImport.update({
   id: '/api/public/proxy',
   path: '/api/public/proxy',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/playlists/$id': typeof PlaylistsIdRoute
   '/api/public/proxy': typeof ApiPublicProxyRoute
+  '/api/public/youtube-audio': typeof ApiPublicYoutubeAudioRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/playlists/$id': typeof PlaylistsIdRoute
   '/api/public/proxy': typeof ApiPublicProxyRoute
+  '/api/public/youtube-audio': typeof ApiPublicYoutubeAudioRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/playlists/$id': typeof PlaylistsIdRoute
   '/api/public/proxy': typeof ApiPublicProxyRoute
+  '/api/public/youtube-audio': typeof ApiPublicYoutubeAudioRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/playlists/$id'
     | '/api/public/proxy'
+    | '/api/public/youtube-audio'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/playlists/$id'
     | '/api/public/proxy'
+    | '/api/public/youtube-audio'
   id:
     | '__root__'
     | '/'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/playlists/$id'
     | '/api/public/proxy'
+    | '/api/public/youtube-audio'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -196,6 +208,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   ApiPublicProxyRoute: typeof ApiPublicProxyRoute
+  ApiPublicYoutubeAudioRoute: typeof ApiPublicYoutubeAudioRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -284,6 +297,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlaylistsIdRouteImport
       parentRoute: typeof PlaylistsRoute
     }
+    '/api/public/youtube-audio': {
+      id: '/api/public/youtube-audio'
+      path: '/api/public/youtube-audio'
+      fullPath: '/api/public/youtube-audio'
+      preLoaderRoute: typeof ApiPublicYoutubeAudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/proxy': {
       id: '/api/public/proxy'
       path: '/api/public/proxy'
@@ -319,7 +339,18 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   ApiPublicProxyRoute: ApiPublicProxyRoute,
+  ApiPublicYoutubeAudioRoute: ApiPublicYoutubeAudioRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
