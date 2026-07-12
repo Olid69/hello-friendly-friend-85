@@ -129,7 +129,7 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
               status: 200,
               headers: {
                 "content-type": complete.contentType ?? "audio/mp4",
-                "content-length": String(complete.total ?? complete.body.byteLength),
+                "content-length": String(complete.total),
                 "accept-ranges": "bytes",
                 "cache-control": "no-store",
                 ...CORS_HEADERS,
