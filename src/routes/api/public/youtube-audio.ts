@@ -230,6 +230,22 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
               }
             }
 
+            // Snaptube-style final fallback: Cobalt public instances resolve
+            // YouTube full audio via their own rotating PoToken pool.
+            const cobaltAudio = await fetchViaCobalt(videoId);
+            if (cobaltAudio) {
+              return new Response(cobaltAudio.body, {
+                status: 200,
+                headers: {
+                  "content-type": cobaltAudio.contentType,
+                  "content-length": String(cobaltAudio.body.byteLength),
+                  "accept-ranges": "none",
+                  "cache-control": "no-store",
+                  ...CORS_HEADERS,
+                },
+              });
+            }
+
             return textResponse(FULL_YOUTUBE_DOWNLOAD_BLOCKED, YOUTUBE_UNAVAILABLE_STATUS);
           }
 
