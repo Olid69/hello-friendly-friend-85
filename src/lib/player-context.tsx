@@ -297,6 +297,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setIsPlaying(true);
   };
 
+  const addToQueue = (track: UnifiedTrack) => {
+    setQueue((prev) =>
+      prev.some((t) => t.id === track.id) ? prev : [...prev, track],
+    );
+  };
+
+  const playNext = (track: UnifiedTrack) => {
+    setQueue((prev) => {
+      const filtered = prev.filter((t) => t.id !== track.id);
+      const idx = current ? filtered.findIndex((t) => t.id === current.id) : -1;
+      const insertAt = idx >= 0 ? idx + 1 : 0;
+      return [...filtered.slice(0, insertAt), track, ...filtered.slice(insertAt)];
+    });
+  };
+
+  const removeFromQueue = (id: string) => {
+    setQueue((prev) => prev.filter((t) => t.id !== id));
+  };
+
   const togglePlay = () => {
     if (current?.source === "youtube") {
       const player = youtubePlayerRef.current;
