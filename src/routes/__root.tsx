@@ -14,6 +14,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppLayout } from "../components/app-layout";
 import { PlayerProvider } from "../lib/player-context";
 import { Toaster } from "../components/ui/sonner";
+import { AuthProvider } from "../lib/auth-context";
+import { supabase } from "../integrations/supabase/client";
 
 function NotFoundComponent() {
   return (

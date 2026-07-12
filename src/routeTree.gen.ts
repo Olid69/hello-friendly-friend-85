@@ -13,12 +13,14 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as RecentRouteImport } from './routes/recent'
 import { Route as QueueRouteImport } from './routes/queue'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PlaylistsRouteImport } from './routes/playlists'
 import { Route as LyricsRouteImport } from './routes/lyrics'
 import { Route as LikedRouteImport } from './routes/liked'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as EqualizerRouteImport } from './routes/equalizer'
 import { Route as DownloadsRouteImport } from './routes/downloads'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlaylistsIdRouteImport } from './routes/playlists.$id'
 import { Route as ApiPublicYoutubeAudioRouteImport } from './routes/api/public/youtube-audio'
@@ -42,6 +44,11 @@ const RecentRoute = RecentRouteImport.update({
 const QueueRoute = QueueRouteImport.update({
   id: '/queue',
   path: '/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlaylistsRoute = PlaylistsRouteImport.update({
@@ -74,6 +81,11 @@ const DownloadsRoute = DownloadsRouteImport.update({
   path: '/downloads',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -97,12 +109,14 @@ const ApiPublicProxyRoute = ApiPublicProxyRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/downloads': typeof DownloadsRoute
   '/equalizer': typeof EqualizerRoute
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
   '/lyrics': typeof LyricsRoute
   '/playlists': typeof PlaylistsRouteWithChildren
+  '/profile': typeof ProfileRoute
   '/queue': typeof QueueRoute
   '/recent': typeof RecentRoute
   '/search': typeof SearchRoute
@@ -113,12 +127,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/downloads': typeof DownloadsRoute
   '/equalizer': typeof EqualizerRoute
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
   '/lyrics': typeof LyricsRoute
   '/playlists': typeof PlaylistsRouteWithChildren
+  '/profile': typeof ProfileRoute
   '/queue': typeof QueueRoute
   '/recent': typeof RecentRoute
   '/search': typeof SearchRoute
@@ -130,12 +146,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/downloads': typeof DownloadsRoute
   '/equalizer': typeof EqualizerRoute
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
   '/lyrics': typeof LyricsRoute
   '/playlists': typeof PlaylistsRouteWithChildren
+  '/profile': typeof ProfileRoute
   '/queue': typeof QueueRoute
   '/recent': typeof RecentRoute
   '/search': typeof SearchRoute
@@ -148,12 +166,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth'
     | '/downloads'
     | '/equalizer'
     | '/library'
     | '/liked'
     | '/lyrics'
     | '/playlists'
+    | '/profile'
     | '/queue'
     | '/recent'
     | '/search'
@@ -164,12 +184,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/auth'
     | '/downloads'
     | '/equalizer'
     | '/library'
     | '/liked'
     | '/lyrics'
     | '/playlists'
+    | '/profile'
     | '/queue'
     | '/recent'
     | '/search'
@@ -180,12 +202,14 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/auth'
     | '/downloads'
     | '/equalizer'
     | '/library'
     | '/liked'
     | '/lyrics'
     | '/playlists'
+    | '/profile'
     | '/queue'
     | '/recent'
     | '/search'
@@ -197,12 +221,14 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthRoute: typeof AuthRoute
   DownloadsRoute: typeof DownloadsRoute
   EqualizerRoute: typeof EqualizerRoute
   LibraryRoute: typeof LibraryRoute
   LikedRoute: typeof LikedRoute
   LyricsRoute: typeof LyricsRoute
   PlaylistsRoute: typeof PlaylistsRouteWithChildren
+  ProfileRoute: typeof ProfileRoute
   QueueRoute: typeof QueueRoute
   RecentRoute: typeof RecentRoute
   SearchRoute: typeof SearchRoute
@@ -239,6 +265,13 @@ declare module '@tanstack/react-router' {
       path: '/queue'
       fullPath: '/queue'
       preLoaderRoute: typeof QueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/playlists': {
@@ -281,6 +314,13 @@ declare module '@tanstack/react-router' {
       path: '/downloads'
       fullPath: '/downloads'
       preLoaderRoute: typeof DownloadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -328,12 +368,14 @@ const PlaylistsRouteWithChildren = PlaylistsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthRoute: AuthRoute,
   DownloadsRoute: DownloadsRoute,
   EqualizerRoute: EqualizerRoute,
   LibraryRoute: LibraryRoute,
   LikedRoute: LikedRoute,
   LyricsRoute: LyricsRoute,
   PlaylistsRoute: PlaylistsRouteWithChildren,
+  ProfileRoute: ProfileRoute,
   QueueRoute: QueueRoute,
   RecentRoute: RecentRoute,
   SearchRoute: SearchRoute,
