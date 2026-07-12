@@ -73,6 +73,15 @@ function isCompleteDownload(bodyLength: number, expectedLength?: number) {
   return bodyLength >= Math.floor(expectedLength * 0.98);
 }
 
+function getContentLengthFromUrl(value: string) {
+  try {
+    const url = new URL(value);
+    const fromClen = Number(url.searchParams.get("clen"));
+    if (Number.isFinite(fromClen) && fromClen > 0) return fromClen;
+  } catch {}
+  return undefined;
+}
+
 async function fetchUpstreamRange(streamUrl: string, range: string) {
   const url = new URL(streamUrl);
   const match = /^bytes=(\d+)-(\d+)$/i.exec(range);
@@ -148,9 +157,9 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
 
           // Full-file download path: try youtubei.js full stream first, then
           // fall back to chunked fetching of the Piped/Invidious signed URL.
-          if (forceDownload || !range) {
+          if (forceDownload && !range) {
             const fullAudio = await fetchYoutubeiAudio(videoId).catch(() => null);
-            if (fullAudio && fullAudio.body.byteLength > 200 * 1024) {
+            if (fullAudio && isCompleteDownload(fullAudio.body.byteLength, fullAudio.contentLength)) {
               return new Response(fullAudio.body, {
                 status: 200,
                 headers: {
@@ -167,7 +176,7 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
             if (streamUrl) {
               try {
                 const complete = await fetchCompleteAudio(streamUrl);
-                if (complete.body && complete.body.byteLength > 200 * 1024) {
+                if (complete.body && isCompleteDownload(complete.body.byteLength, complete.total)) {
                   return new Response(complete.body, {
                     status: 200,
                     headers: {
@@ -189,7 +198,8 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
               }).catch(() => null);
               if (single && single.ok) {
                 const body = await single.arrayBuffer();
-                if (body.byteLength > 200 * 1024) {
+                const expectedLength = Number(single.headers.get("content-length")) || getContentLengthFromUrl(streamUrl);
+                if (isCompleteDownload(body.byteLength, expectedLength)) {
                   return new Response(body, {
                     status: 200,
                     headers: {
@@ -219,10 +229,10 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
               ...CORS_HEADERS,
             });
             if (directAudio.range) {
-              const total = directAudio.range.end + 1;
+              const total = directAudio.range.total ?? directAudio.contentLength;
               headers.set(
                 "content-range",
-                `bytes ${directAudio.range.start}-${directAudio.range.end}/${total}`,
+                `bytes ${directAudio.range.start}-${directAudio.range.end}/${total ?? "*"}`,
               );
             }
             return new Response(directAudio.body, {
@@ -241,13 +251,22 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           const body = await upstream.arrayBuffer();
           const headers = new Headers({
             "content-type": upstream.headers.get("content-type") ?? "audio/mp4",
+            "content-length": String(body.byteLength),
             "cache-control": "no-store",
             ...CORS_HEADERS,
           });
           const acceptRanges = upstream.headers.get("accept-ranges");
           const contentRange = upstream.headers.get("content-range");
           if (acceptRanges) headers.set("accept-ranges", acceptRanges);
-          if (contentRange) headers.set("content-range", contentRange);
+          if (contentRange) {
+            headers.set("content-range", contentRange);
+          } else if (requestedRange) {
+            const total = getContentLengthFromUrl(streamUrl);
+            headers.set(
+              "content-range",
+              `bytes ${requestedRange.start}-${requestedRange.start + body.byteLength - 1}/${total ?? "*"}`,
+            );
+          }
           return new Response(body, {
             status: upstream.status === 206 ? 206 : 200,
             headers,
