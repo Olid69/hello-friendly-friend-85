@@ -6,12 +6,17 @@ const STORE = "tracks";
 const VERSION = 1;
 const DOWNLOAD_CHUNK_SIZE = 1024 * 1024;
 const MAX_CHUNKED_DOWNLOAD_BYTES = 80 * 1024 * 1024;
+const INCOMPLETE_YOUTUBE_BYTES = 1280 * 1024;
 
 export type DownloadedTrack = {
   track: UnifiedTrack;
   blob: Blob;
   savedAt: number;
 };
+
+function isIncompleteYouTubeDownload(track: UnifiedTrack, blob: Blob) {
+  return track.source === "youtube" && track.duration > 60 && blob.size <= INCOMPLETE_YOUTUBE_BYTES;
+}
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -146,6 +151,11 @@ async function fetchBlobWithRetry(url: string, attempts = 3): Promise<Blob> {
 
 export async function saveDownload(track: UnifiedTrack, streamUrl: string) {
   const blob = await fetchBlobWithRetry(streamUrl);
+  if (isIncompleteYouTubeDownload(track, blob)) {
+    throw new Error(
+      "Full YouTube offline download is currently blocked by YouTube. Stream this track online or download from Jamendo, Audius, or Deezer.",
+    );
+  }
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
@@ -178,7 +188,14 @@ export async function listDownloads(): Promise<DownloadedTrack[]> {
     req.onerror = () => reject(req.error);
   });
   db.close();
-  return items as DownloadedTrack[];
+  const downloads = items as DownloadedTrack[];
+  const incompleteIds = downloads
+    .filter((item) => isIncompleteYouTubeDownload(item.track, item.blob))
+    .map((item) => item.track.id);
+  if (incompleteIds.length) {
+    await Promise.allSettled(incompleteIds.map((id) => deleteDownload(id)));
+  }
+  return downloads.filter((item) => !incompleteIds.includes(item.track.id));
 }
 
 export async function getDownloadBlobUrl(id: string): Promise<string | null> {
@@ -191,6 +208,10 @@ export async function getDownloadBlobUrl(id: string): Promise<string | null> {
   });
   db.close();
   if (!item) return null;
+  if (isIncompleteYouTubeDownload(item.track, item.blob)) {
+    await deleteDownload(id);
+    return null;
+  }
   return URL.createObjectURL(item.blob);
 }
 
