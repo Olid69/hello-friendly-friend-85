@@ -42,6 +42,8 @@ import { toast } from "sonner";
 
 type MirrorCandidate = UnifiedTrack & { verified?: boolean; matchScore?: number };
 
+const RELIABLE_MIRROR_SCORE = 0.65;
+
 
 const sourceColors: Record<string, string> = {
   youtube: "bg-red-500/20 text-red-300",
@@ -88,7 +90,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
     }
   };
 
-  const openMirrorPicker = async (query = candidateQuery, strict = false) => {
+  const openMirrorPicker = async (query = candidateQuery, strict = false, openWhenWeak = true) => {
     setBusy(true);
     try {
       const result = await fetchAlternatives({
@@ -100,17 +102,25 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
           strict,
         },
       });
-      setCandidates(result.tracks as MirrorCandidate[]);
+      const tracks = result.tracks as MirrorCandidate[];
+      const hasReliableMatch = tracks.some(
+        (candidate) => candidate.verified || (candidate.matchScore ?? 0) >= RELIABLE_MIRROR_SCORE,
+      );
+      setCandidates(tracks);
       setPickerMessage(
         result.verifiedCount > 0
           ? "Verified full-song matches are shown first."
-          : "No exact full-song match was confirmed. Preview and save a selected Jamendo/Audius track instead.",
+          : hasReliableMatch
+            ? "Close full-song matches are shown first. Preview before saving."
+            : "No safe full-song match was found, so unrelated beats are hidden unless you search manually.",
       );
-      setPickerOpen(true);
+      if (openWhenWeak || hasReliableMatch) setPickerOpen(true);
+      return { tracks, verifiedCount: result.verifiedCount, hasReliableMatch };
     } catch {
       setCandidates([]);
       setPickerMessage("Search could not load downloadable matches right now.");
-      setPickerOpen(true);
+      if (openWhenWeak) setPickerOpen(true);
+      return { tracks: [], verifiedCount: 0, hasReliableMatch: false };
     } finally {
       setBusy(false);
     }
@@ -132,13 +142,13 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
           toast.success("Downloaded for offline");
           return;
         } catch {
-          // fall through to mirror picker if YouTube blocked us
           const q = [track.title, track.artist].filter(Boolean).join(" ");
           setCandidateQuery(q);
           setCandidates([]);
-          setPickerMessage("YouTube blocked the direct save. Pick a Jamendo/Audius mirror instead.");
-          setPickerOpen(true);
-          await openMirrorPicker(q, false);
+          const result = await openMirrorPicker(q, true, false);
+          if (!result.hasReliableMatch) {
+            toast.error("YouTube blocked the full save, and no safe full-song match was found.");
+          }
           return;
         }
       }
@@ -146,9 +156,10 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
         const q = [track.title, track.artist].filter(Boolean).join(" ");
         setCandidateQuery(q);
         setCandidates([]);
-        setPickerMessage("Deezer only serves 30s previews. Pick a full Jamendo/Audius mirror.");
-        setPickerOpen(true);
-        await openMirrorPicker(q, false);
+        const result = await openMirrorPicker(q, true, false);
+        if (!result.hasReliableMatch) {
+          toast.error("Deezer only has a 30s preview here, and no safe full-song match was found.");
+        }
         return;
       }
       const url = track.streamUrl
