@@ -37,10 +37,15 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           if (!streamUrl) return textResponse("YouTube stream unavailable", 503);
 
           const range = request.headers.get("range");
+          // Many YouTube media hosts reject a plain full-file request from server
+          // runtimes, while accepting byte-range media requests. Downloads from
+          // fetch()/IndexedDB usually do not send a Range header, so request the
+          // whole file as an explicit range instead of doing a non-range fetch.
+          const upstreamRange = range ?? "bytes=0-";
           const upstream = await fetch(streamUrl, {
             headers: {
               accept: "audio/*,video/*,*/*;q=0.8",
-              ...(range ? { range } : {}),
+              range: upstreamRange,
             },
             signal: AbortSignal.timeout(60_000),
           });
