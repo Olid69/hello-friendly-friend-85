@@ -164,7 +164,11 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           // fall back to chunked fetching of the Piped/Invidious signed URL.
           if (forceDownload && !range) {
             const fullAudio = await fetchYoutubeiAudio(videoId).catch(() => null);
-            if (fullAudio && isCompleteDownload(fullAudio.body.byteLength, fullAudio.contentLength)) {
+            if (
+              fullAudio &&
+              fullAudio.body.byteLength >= MIN_FULL_DOWNLOAD_BYTES &&
+              isCompleteDownload(fullAudio.body.byteLength, fullAudio.contentLength)
+            ) {
               return new Response(fullAudio.body, {
                 status: 200,
                 headers: {
@@ -181,7 +185,11 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
             if (streamUrl) {
               try {
                 const complete = await fetchCompleteAudio(streamUrl);
-                if (complete.body && isCompleteDownload(complete.body.byteLength, complete.total)) {
+                if (
+                  complete.body &&
+                  complete.body.byteLength >= MIN_FULL_DOWNLOAD_BYTES &&
+                  isCompleteDownload(complete.body.byteLength, complete.total)
+                ) {
                   return new Response(complete.body, {
                     status: 200,
                     headers: {
@@ -204,7 +212,10 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
               if (single && single.ok) {
                 const body = await single.arrayBuffer();
                 const expectedLength = Number(single.headers.get("content-length")) || getContentLengthFromUrl(streamUrl);
-                if (isCompleteDownload(body.byteLength, expectedLength)) {
+                if (
+                  body.byteLength >= MIN_FULL_DOWNLOAD_BYTES &&
+                  isCompleteDownload(body.byteLength, expectedLength)
+                ) {
                   return new Response(body, {
                     status: 200,
                     headers: {
