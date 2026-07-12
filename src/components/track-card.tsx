@@ -125,7 +125,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
     setBusy(true);
     try {
       if (track.source === "youtube") {
-        const videoId = track.id.replace(/^yt:/, "");
+        const videoId = track.id.replace(/^youtube:/, "");
         const url = `/api/public/youtube-audio?videoId=${encodeURIComponent(videoId)}&download=1`;
         try {
           await saveDownload(track, url);
