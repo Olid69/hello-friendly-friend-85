@@ -247,6 +247,115 @@ function extractBestYoutubeiAudio(info: any, poToken?: string): string | null {
   return pickAudio(muxed);
 }
 
+async function streamToArrayBuffer(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    chunks.push(value);
+    total += value.byteLength;
+  }
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return merged.buffer;
+}
+
+export async function fetchYoutubeiAudio(
+  videoId: string,
+  range?: { start: number; end?: number },
+): Promise<{
+  body: ArrayBuffer;
+  contentType: string;
+  contentLength?: number;
+  range?: { start: number; end: number; total?: number };
+} | null> {
+  const poToken = process.env.YOUTUBE_PO_TOKEN;
+  const visitorData = process.env.YOUTUBE_VISITOR_DATA;
+
+  for (const client of YOUTUBEI_CLIENTS) {
+    try {
+      const cacheKey = `${client.name}:${poToken ?? ""}:${visitorData ?? ""}`;
+      let innertube = youtubeiSessions.get(cacheKey);
+      if (!innertube) {
+        innertube = await Innertube.create({
+          client_type: client.type,
+          retrieve_player: true,
+          generate_session_locally: true,
+          enable_session_cache: false,
+          ...(poToken ? { po_token: poToken } : {}),
+          ...(visitorData ? { visitor_data: visitorData } : {}),
+        });
+        youtubeiSessions.set(cacheKey, innertube);
+      }
+
+      const info = await innertube.getBasicInfo(videoId, poToken ? { po_token: poToken } : undefined);
+      const format = info.chooseFormat({ type: "audio", quality: "best", format: "any" } as any) as any;
+      const contentLength = Number(format?.content_length ?? format?.contentLength) || undefined;
+
+      if (range && typeof format?.decipher === "function") {
+        const player = (innertube as any)?.session?.player;
+        const decipheredUrl = String(await format.decipher(player));
+        if (decipheredUrl) {
+          const url = new URL(decipheredUrl);
+          url.searchParams.set("range", `${range.start}-${range.end ?? range.start + 1048575}`);
+          const response = await fetch(url.toString(), {
+            headers: { accept: "audio/*,video/*,*/*;q=0.8" },
+            signal: AbortSignal.timeout(60_000),
+          });
+          if (!response.ok) continue;
+          const body = await response.arrayBuffer();
+          if (body.byteLength === 0) continue;
+          return {
+            body,
+            contentType: String(format?.mime_type ?? format?.mimeType ?? "audio/mp4").split(";")[0],
+            contentLength,
+            range: {
+              start: range.start,
+              end: range.start + body.byteLength - 1,
+              total: contentLength,
+            },
+          };
+        }
+      }
+
+      const stream = (await info.download({
+        type: "audio",
+        quality: "best",
+        format: "any",
+        ...(range ? { range } : {}),
+      } as any)) as ReadableStream<Uint8Array>;
+      const body = await streamToArrayBuffer(stream);
+      if (body.byteLength === 0) continue;
+
+      const actualRange = range
+        ? {
+            start: range.start,
+            end: range.start + body.byteLength - 1,
+            total: contentLength,
+          }
+        : undefined;
+
+      return {
+        body,
+        contentType: String(format?.mime_type ?? format?.mimeType ?? "audio/mp4").split(";")[0],
+        contentLength,
+        range: actualRange,
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 async function resolveYoutubeiStream(videoId: string): Promise<string | null> {
   const poToken = process.env.YOUTUBE_PO_TOKEN;
   const visitorData = process.env.YOUTUBE_VISITOR_DATA;
