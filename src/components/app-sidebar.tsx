@@ -177,8 +177,6 @@ export function AppSidebar() {
           For personal use only. Respects YouTube ToS via Piped.
         </p>
       </div>
-      {/* Hidden reference to keep icon import used if session state changes */}
-      <UserIcon className="hidden" />
     </aside>
   );
 }
