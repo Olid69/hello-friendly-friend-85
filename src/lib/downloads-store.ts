@@ -6,7 +6,6 @@ const STORE = "tracks";
 const VERSION = 1;
 const DOWNLOAD_CHUNK_SIZE = 1024 * 1024;
 const MAX_CHUNKED_DOWNLOAD_BYTES = 80 * 1024 * 1024;
-const INCOMPLETE_YOUTUBE_BYTES = 1280 * 1024;
 
 export type DownloadedTrack = {
   track: UnifiedTrack;
@@ -14,13 +13,10 @@ export type DownloadedTrack = {
   savedAt: number;
 };
 
-function isIncompleteYouTubeDownload(track: UnifiedTrack, blob: Blob) {
-  return track.source === "youtube" && track.duration > 60 && blob.size <= INCOMPLETE_YOUTUBE_BYTES;
-}
-
 function isPreviewOnlyDownload(track: UnifiedTrack) {
   return track.source === "deezer";
 }
+
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
