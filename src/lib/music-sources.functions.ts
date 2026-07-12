@@ -44,7 +44,7 @@ export const downloadableAlternatives = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const title = data.title.trim();
     const artist = data.artist?.trim() ?? "";
-    if (!title) return { tracks: [] };
+    if (!title) return { tracks: [], verifiedCount: 0 };
 
     const normalize = (value: string) =>
       value
@@ -71,24 +71,29 @@ export const downloadableAlternatives = createServerFn({ method: "GET" })
     const targetArtist = normalize(artist);
     const targetDuration = Number(data.duration) || 0;
 
-    const isVerifiedMatch = (track: { title: string; artist: string; duration: number }) => {
+    const scoreMatch = (track: { title: string; artist: string; duration: number }) => {
       const candidateTitle = normalize(track.title);
-      const titleMatch =
-        candidateTitle === targetTitle ||
-        candidateTitle.includes(targetTitle) ||
-        targetTitle.includes(candidateTitle) ||
-        overlap(title, track.title) >= 0.72;
-      if (!titleMatch) return false;
+      let titleScore = overlap(title, track.title);
+      if (candidateTitle === targetTitle) titleScore = 1;
+      else if (candidateTitle.includes(targetTitle) || targetTitle.includes(candidateTitle))
+        titleScore = Math.max(titleScore, 0.85);
 
-      const artistMatch = !targetArtist || overlap(artist, track.artist) >= 0.5;
-      if (!artistMatch) return false;
+      const artistScore = !targetArtist ? 0.5 : overlap(artist, track.artist);
 
-      if (targetDuration > 75 && track.duration > 45) {
-        const difference = Math.abs(track.duration - targetDuration);
-        return difference <= Math.max(18, targetDuration * 0.18);
+      let durationScore = 0.5;
+      if (targetDuration > 30 && track.duration > 30) {
+        const diff = Math.abs(track.duration - targetDuration);
+        durationScore = diff <= 8 ? 1 : diff <= 20 ? 0.8 : diff <= 45 ? 0.5 : 0.2;
       }
 
-      return track.duration > 45;
+      const score = titleScore * 0.6 + artistScore * 0.25 + durationScore * 0.15;
+      const verified =
+        titleScore >= 0.72 &&
+        (!targetArtist || artistScore >= 0.5) &&
+        track.duration > 45 &&
+        (targetDuration <= 75 || Math.abs(track.duration - targetDuration) <= Math.max(18, targetDuration * 0.18));
+
+      return { score, verified };
     };
 
     const query = [title, artist].filter(Boolean).join(" ");
@@ -97,9 +102,15 @@ export const downloadableAlternatives = createServerFn({ method: "GET" })
       searchAudius(query, 8),
     ]);
 
+    const scored = [...jamendo, ...audius]
+      .filter((track) => Boolean(track.streamUrl) && track.duration > 45)
+      .map((track) => ({ track, ...scoreMatch(track) }))
+      .filter((entry) => entry.score >= 0.35)
+      .sort((a, b) => Number(b.verified) - Number(a.verified) || b.score - a.score)
+      .slice(0, 6);
+
     return {
-      tracks: [...jamendo, ...audius]
-        .filter((track) => Boolean(track.streamUrl) && isVerifiedMatch(track))
-        .slice(0, 3),
+      tracks: scored.map((entry) => ({ ...entry.track, verified: entry.verified })),
+      verifiedCount: scored.filter((entry) => entry.verified).length,
     };
   });
