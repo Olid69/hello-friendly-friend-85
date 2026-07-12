@@ -299,10 +299,20 @@ async function decipherYoutubeFormatUrl(
   }
 }
 
+// Minimum plausible bytes for a full song of `durationSec` seconds.
+// Uses ~64kbps floor (8000 B/s). Rejects the classic 1MB throttled stub.
+function minPlausibleAudioBytes(durationSec?: number) {
+  const dur = durationSec && durationSec > 0 ? durationSec : 0;
+  if (!dur) return 900 * 1024; // no duration hint: still reject <900KB
+  // 64kbps floor for audio; muxed MP4 with video will be much larger anyway.
+  return Math.max(900 * 1024, Math.floor(dur * 8_000));
+}
+
 async function fetchWholeYoutubeFormat(
   format: any,
   innertube: Awaited<ReturnType<typeof Innertube.create>>,
   poToken?: string,
+  durationSec?: number,
 ) {
   const rawUrl = await decipherYoutubeFormatUrl(format, innertube, poToken);
   if (!rawUrl) return null;
@@ -339,6 +349,8 @@ async function fetchWholeYoutubeFormat(
       ? body.byteLength >= Math.floor(contentLength * 0.98)
       : body.byteLength > YT_CHUNK + 64 * 1024;
     if (!complete) return null;
+    // Duration sanity: reject throttled 1MB stubs that lie about content-length.
+    if (body.byteLength < minPlausibleAudioBytes(durationSec)) return null;
     return {
       body,
       contentType: getYoutubeFormatContentType(format),
