@@ -29,10 +29,34 @@ function notify() {
   window.dispatchEvent(new CustomEvent("sonora:downloads"));
 }
 
+async function fetchBlobWithRetry(url: string, attempts = 3): Promise<Blob> {
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i += 1) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 45_000);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
+      const blob = await res.blob();
+      if (blob.size === 0) throw new Error("Downloaded file is empty");
+      return blob;
+    } catch (error) {
+      lastError = error;
+      if (i === attempts - 1) break;
+      await new Promise((resolve) => window.setTimeout(resolve, 500 + i * 750));
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Download failed");
+}
+
 export async function saveDownload(track: UnifiedTrack, streamUrl: string) {
-  const res = await fetch(streamUrl);
-  if (!res.ok) throw new Error("Download failed");
-  const blob = await res.blob();
+  const blob = await fetchBlobWithRetry(streamUrl);
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");

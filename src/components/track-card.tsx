@@ -57,7 +57,9 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       if (track.source === "youtube") {
         const videoId = track.id.replace(/^youtube:/, "");
         const res = await resolveYoutubeStream({ data: { videoId } });
-        if (!res.streamUrl) throw new Error("resolve failed");
+        if (!res.streamUrl) {
+          throw new Error("YouTube offline download is unavailable for this track right now.");
+        }
         url = `/api/public/proxy?u=${encodeURIComponent(res.streamUrl)}`;
       } else if (url) {
         // Route through proxy to bypass CORS on arbitrary hosts.
@@ -66,8 +68,12 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       if (!url) throw new Error("no stream");
       await saveDownload(track, url);
       toast.success("Downloaded for offline");
-    } catch {
-      toast.error("Download failed");
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.includes("YouTube")
+          ? error.message
+          : "Download failed. Try Jamendo, Audius, or Deezer if this source blocks saving.";
+      toast.error(message);
     } finally {
       setBusy(false);
     }
