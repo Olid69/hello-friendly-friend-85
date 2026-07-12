@@ -112,6 +112,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     media.load();
   };
 
+  const usableDuration = (value: number, fallback = 0) =>
+    Number.isFinite(value) && value > 0 ? value : fallback;
+
   const finishTrack = () => {
     const media = getActiveMedia();
     if (repeat === "one" && media) {
@@ -203,7 +206,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const player = youtubePlayerRef.current;
       if (!player?.getCurrentTime) return;
       setProgress(player.getCurrentTime() || 0);
-      setDuration(player.getDuration?.() || fallbackDuration);
+      setDuration(usableDuration(player.getDuration?.() || 0, fallbackDuration));
     }, 500);
     return () => window.clearInterval(timer);
   }, [current, playbackEngine]);
@@ -413,7 +416,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     onTimeUpdate: (e: SyntheticEvent<HTMLMediaElement>) =>
       e.currentTarget === getActiveMedia() && setProgress(e.currentTarget.currentTime),
     onLoadedMetadata: (e: SyntheticEvent<HTMLMediaElement>) =>
-      e.currentTarget === getActiveMedia() && setDuration(e.currentTarget.duration),
+      e.currentTarget === getActiveMedia() &&
+      setDuration(usableDuration(e.currentTarget.duration, current?.duration ?? 0)),
     onCanPlay: (e: SyntheticEvent<HTMLMediaElement>) => {
       if (e.currentTarget === getActiveMedia()) setIsLoading(false);
     },
