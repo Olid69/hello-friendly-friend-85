@@ -67,10 +67,12 @@ function concatChunks(chunks: Uint8Array[], total: number) {
 }
 
 function isCompleteDownload(bodyLength: number, expectedLength?: number) {
-  if (bodyLength < MIN_COMPLETE_DOWNLOAD_BYTES) return false;
-  if (expectedLength && expectedLength < MIN_COMPLETE_DOWNLOAD_BYTES) return false;
-  if (!expectedLength) return bodyLength > CHUNK_SIZE;
-  return bodyLength >= Math.floor(expectedLength * 0.98);
+  if (expectedLength && expectedLength > 0) {
+    // Trust the upstream content length — accept if we got ≥98% of it.
+    return bodyLength >= Math.floor(expectedLength * 0.98);
+  }
+  // No length hint: require more than one chunk so we don't save a stub.
+  return bodyLength >= MIN_COMPLETE_DOWNLOAD_BYTES;
 }
 
 function getContentLengthFromUrl(value: string) {
