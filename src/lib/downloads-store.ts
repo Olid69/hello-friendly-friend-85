@@ -142,7 +142,36 @@ async function fetchBlobInChunks(url: string): Promise<Blob> {
 
 async function fetchBlobWithRetry(url: string, attempts = 3): Promise<Blob> {
   if (url.includes("/api/public/youtube-audio")) {
-    return fetchBlobInChunks(url);
+    // Snaptube-style: single full-file request. The server assembles the whole
+    // audio (via youtubei.js + chunked Piped fallback) and streams it back.
+    // Sending Range headers here forces per-chunk deciphering on the server
+    // which is fragile and usually aborts after ~1MB.
+    let lastError: unknown;
+    for (let i = 0; i < attempts; i += 1) {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 180_000);
+      try {
+        const res = await fetch(url, {
+          signal: controller.signal,
+          cache: "no-store",
+          credentials: "same-origin",
+        });
+        if (!res.ok) {
+          const details = await res.text().catch(() => "");
+          throw new Error(details || `Download failed (${res.status})`);
+        }
+        const blob = await res.blob();
+        if (blob.size === 0) throw new Error("Downloaded file is empty");
+        return blob;
+      } catch (error) {
+        lastError = error;
+        if (i === attempts - 1) break;
+        await new Promise((resolve) => window.setTimeout(resolve, 800 + i * 1200));
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("Download failed");
   }
 
   let lastError: unknown;
