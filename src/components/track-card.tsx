@@ -26,7 +26,19 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+
+type MirrorCandidate = UnifiedTrack & { verified?: boolean };
+
 
 const sourceColors: Record<string, string> = {
   youtube: "bg-red-500/20 text-red-300",
