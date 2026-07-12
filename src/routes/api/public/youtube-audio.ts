@@ -156,6 +156,25 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
             });
           }
 
+          if (!range) {
+            const previewAudio = await fetchYoutubeiAudio(videoId, {
+              start: 0,
+              end: CHUNK_SIZE - 1,
+            });
+            if (previewAudio) {
+              return new Response(previewAudio.body, {
+                status: 200,
+                headers: {
+                  "content-type": previewAudio.contentType,
+                  "content-length": String(previewAudio.body.byteLength),
+                  "accept-ranges": "none",
+                  "cache-control": "no-store",
+                  ...CORS_HEADERS,
+                },
+              });
+            }
+          }
+
           const streamUrl = await resolvePipedStream(videoId);
           if (!streamUrl) return textResponse("YouTube stream unavailable", 503);
 
