@@ -200,9 +200,12 @@ type YoutubeiClient = {
 };
 
 const YOUTUBEI_CLIENTS: YoutubeiClient[] = [
+  { name: "android-vr", type: ClientType.ANDROID_VR },
+  { name: "tv-embedded", type: ClientType.TV_EMBEDDED },
   { name: "ios", type: ClientType.IOS },
   { name: "android", type: ClientType.ANDROID },
   { name: "android-music", type: ClientType.ANDROID_MUSIC },
+  { name: "tv", type: ClientType.TV },
   { name: "mweb", type: ClientType.MWEB },
   { name: "web", type: ClientType.WEB },
 ];
