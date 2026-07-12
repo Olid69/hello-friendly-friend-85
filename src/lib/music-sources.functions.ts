@@ -47,13 +47,12 @@ export const downloadableAlternatives = createServerFn({ method: "GET" })
     if (!title) return { tracks: [] };
 
     const query = [title, artist].filter(Boolean).join(" ");
-    const [jamendo, audius, deezer] = await Promise.all([
+    const [jamendo, audius] = await Promise.all([
       searchJamendo(query, 8),
       searchAudius(query, 8),
-      searchDeezer(query, 8),
     ]);
 
     return {
-      tracks: [...jamendo, ...audius, ...deezer].filter((track) => Boolean(track.streamUrl)),
+      tracks: [...jamendo, ...audius].filter((track) => Boolean(track.streamUrl) && track.duration > 45),
     };
   });

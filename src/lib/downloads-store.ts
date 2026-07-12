@@ -18,6 +18,10 @@ function isIncompleteYouTubeDownload(track: UnifiedTrack, blob: Blob) {
   return track.source === "youtube" && track.duration > 60 && blob.size <= INCOMPLETE_YOUTUBE_BYTES;
 }
 
+function isPreviewOnlyDownload(track: UnifiedTrack) {
+  return track.source === "deezer";
+}
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, VERSION);
@@ -151,6 +155,9 @@ async function fetchBlobWithRetry(url: string, attempts = 3): Promise<Blob> {
 
 export async function saveDownload(track: UnifiedTrack, streamUrl: string) {
   const blob = await fetchBlobWithRetry(streamUrl);
+  if (isPreviewOnlyDownload(track)) {
+    throw new Error("Deezer only provides 30-second previews here. Use Jamendo or Audius for full offline downloads.");
+  }
   if (isIncompleteYouTubeDownload(track, blob)) {
     throw new Error(
       "Full YouTube offline download is currently blocked by YouTube. Stream this track online or download from Jamendo, Audius, or Deezer.",
@@ -190,7 +197,7 @@ export async function listDownloads(): Promise<DownloadedTrack[]> {
   db.close();
   const downloads = items as DownloadedTrack[];
   const incompleteIds = downloads
-    .filter((item) => isIncompleteYouTubeDownload(item.track, item.blob))
+    .filter((item) => isIncompleteYouTubeDownload(item.track, item.blob) || isPreviewOnlyDownload(item.track))
     .map((item) => item.track.id);
   if (incompleteIds.length) {
     await Promise.allSettled(incompleteIds.map((id) => deleteDownload(id)));
@@ -208,7 +215,7 @@ export async function getDownloadBlobUrl(id: string): Promise<string | null> {
   });
   db.close();
   if (!item) return null;
-  if (isIncompleteYouTubeDownload(item.track, item.blob)) {
+  if (isIncompleteYouTubeDownload(item.track, item.blob) || isPreviewOnlyDownload(item.track)) {
     await deleteDownload(id);
     return null;
   }
