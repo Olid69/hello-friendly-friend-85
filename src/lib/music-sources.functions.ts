@@ -120,7 +120,7 @@ export const downloadableAlternatives = createServerFn({ method: "GET" })
         return true;
       });
 
-    const strict = data.strict !== false && !manualQuery;
+    const strict = data.strict !== false;
     const scored = allTracks
       .filter((track) => Boolean(track.streamUrl) && track.duration > 45)
       .map((track) => ({ track, ...scoreMatch(track) }))
