@@ -65,7 +65,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       toast.success("Downloaded for offline");
     } catch (error) {
       const message =
-        error instanceof Error && /youtube/i.test(error.message)
+        error instanceof Error && /(youtube|offline download|blocked)/i.test(error.message)
           ? error.message
           : "Download failed. Try Jamendo, Audius, or Deezer if this source blocks saving.";
       toast.error(message);

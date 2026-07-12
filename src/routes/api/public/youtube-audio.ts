@@ -9,7 +9,10 @@ const CORS_HEADERS = {
 
 const CHUNK_SIZE = 1024 * 1024;
 const MAX_DOWNLOAD_BYTES = 80 * 1024 * 1024;
+const MIN_COMPLETE_DOWNLOAD_BYTES = CHUNK_SIZE + 64 * 1024;
 const YOUTUBE_UNAVAILABLE_STATUS = 424;
+const FULL_YOUTUBE_DOWNLOAD_BLOCKED =
+  "Full YouTube offline download is currently blocked by YouTube. Stream this track online or download from Jamendo, Audius, or Deezer.";
 
 function textResponse(message: string, status: number) {
   return new Response(message, {
@@ -63,6 +66,13 @@ function concatChunks(chunks: Uint8Array[], total: number) {
   return merged.buffer;
 }
 
+function isCompleteDownload(bodyLength: number, expectedLength?: number) {
+  if (bodyLength < MIN_COMPLETE_DOWNLOAD_BYTES) return false;
+  if (expectedLength && expectedLength < MIN_COMPLETE_DOWNLOAD_BYTES) return false;
+  if (!expectedLength) return bodyLength > CHUNK_SIZE;
+  return bodyLength >= Math.floor(expectedLength * 0.98);
+}
+
 async function fetchUpstreamRange(streamUrl: string, range: string) {
   const url = new URL(streamUrl);
   const match = /^bytes=(\d+)-(\d+)$/i.exec(range);
@@ -93,7 +103,7 @@ async function fetchCompleteAudio(streamUrl: string) {
   const contentRange = parseContentRange(first.headers.get("content-range"));
 
   if (first.status !== 206 || !contentRange?.total) {
-    return { body: firstBuffer, contentType, total: firstBuffer.byteLength };
+    return { body: firstBuffer, contentType, total: undefined };
   }
 
   const total = contentRange.total;
@@ -143,7 +153,7 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
             // Full-file download: use youtubei streaming (no range) to fetch
             // the entire audio track, not just the first 1MB preview.
             const fullAudio = await fetchYoutubeiAudio(videoId);
-            if (fullAudio) {
+            if (fullAudio && isCompleteDownload(fullAudio.body.byteLength, fullAudio.contentLength)) {
               return new Response(fullAudio.body, {
                 status: 200,
                 headers: {
@@ -155,6 +165,7 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
                 },
               });
             }
+            if (fullAudio) return textResponse(FULL_YOUTUBE_DOWNLOAD_BLOCKED, YOUTUBE_UNAVAILABLE_STATUS);
           }
 
           const directAudio = await fetchYoutubeiAudio(videoId, requestedRange ?? undefined);
@@ -192,15 +203,18 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           if (!range) {
             const complete = await fetchCompleteAudio(streamUrl);
             if (complete.response && !complete.response.ok) {
-              return textResponse("YouTube media host rejected the stream", YOUTUBE_UNAVAILABLE_STATUS);
+              return textResponse(FULL_YOUTUBE_DOWNLOAD_BLOCKED, YOUTUBE_UNAVAILABLE_STATUS);
             }
             if (!complete.body) return textResponse("YouTube download failed", YOUTUBE_UNAVAILABLE_STATUS);
+            if (!isCompleteDownload(complete.body.byteLength, complete.total)) {
+              return textResponse(FULL_YOUTUBE_DOWNLOAD_BLOCKED, YOUTUBE_UNAVAILABLE_STATUS);
+            }
 
             return new Response(complete.body, {
               status: 200,
               headers: {
                 "content-type": complete.contentType ?? "audio/mp4",
-                "content-length": String(complete.total),
+                "content-length": String(complete.total ?? complete.body.byteLength),
                 "accept-ranges": "bytes",
                 "cache-control": "no-store",
                 ...CORS_HEADERS,
@@ -211,7 +225,7 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           const upstream = await fetchUpstreamRange(streamUrl, normalizeRange(range));
 
           if (!upstream.ok) {
-            return textResponse("YouTube media host rejected the stream", YOUTUBE_UNAVAILABLE_STATUS);
+            return textResponse(FULL_YOUTUBE_DOWNLOAD_BLOCKED, YOUTUBE_UNAVAILABLE_STATUS);
           }
 
           const body = await upstream.arrayBuffer();

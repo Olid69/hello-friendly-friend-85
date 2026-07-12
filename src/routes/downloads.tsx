@@ -21,7 +21,7 @@ function DownloadsPage() {
       </div>
       {downloads.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-          No downloads yet. Use the track menu (⋮) → "Download offline".
+          No complete downloads yet. Use the track menu (⋮) → "Download offline".
         </div>
       ) : (
         <ul className="divide-y divide-border rounded-lg bg-card">
