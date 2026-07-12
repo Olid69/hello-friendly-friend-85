@@ -461,11 +461,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-      <audio ref={audioRef} preload="metadata" {...mediaHandlers} />
+      <audio ref={audioRef} preload="metadata" crossOrigin="anonymous" {...mediaHandlers} />
       <video
         ref={videoRef}
         preload="metadata"
         playsInline
+        crossOrigin="anonymous"
         className="hidden"
         {...mediaHandlers}
       />
