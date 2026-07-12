@@ -100,7 +100,7 @@ async function fetchCompleteAudio(streamUrl: string) {
   const contentRange = parseContentRange(first.headers.get("content-range"));
 
   if (first.status !== 206 || !contentRange?.total) {
-    return { body: firstBuffer, contentType, total: firstBuffer.byteLength };
+    return { body: firstBuffer, contentType, total: undefined };
   }
 
   const total = contentRange.total;
@@ -211,7 +211,7 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
               status: 200,
               headers: {
                 "content-type": complete.contentType ?? "audio/mp4",
-                "content-length": String(complete.total),
+                "content-length": String(complete.total ?? complete.body.byteLength),
                 "accept-ranges": "bytes",
                 "cache-control": "no-store",
                 ...CORS_HEADERS,
