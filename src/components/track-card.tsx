@@ -55,13 +55,13 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
     try {
       let url = track.streamUrl;
       let trackToSave = track;
-      if (track.source === "youtube") {
+      if (track.source === "youtube" || track.source === "deezer") {
         const { tracks } = await downloadableAlternatives({
           data: { title: track.title, artist: track.artist },
         });
         const mirror = tracks.find((item) => item.streamUrl);
         if (!mirror?.streamUrl) {
-          throw new Error("No offline mirror found from Jamendo, Audius, or Deezer for this YouTube track.");
+          throw new Error("No full offline mirror found from Jamendo or Audius for this track.");
         }
         trackToSave = {
           ...track,
@@ -78,7 +78,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       if (!url) throw new Error("no stream");
       await saveDownload(trackToSave, url);
       toast.success(
-        track.source === "youtube" && trackToSave.source !== "youtube"
+        (track.source === "youtube" || track.source === "deezer") && trackToSave.source !== track.source
           ? `Downloaded offline from ${trackToSave.source}`
           : "Downloaded for offline",
       );
