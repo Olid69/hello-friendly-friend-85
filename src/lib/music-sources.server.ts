@@ -267,6 +267,41 @@ async function streamToArrayBuffer(stream: ReadableStream<Uint8Array>) {
   return merged.buffer;
 }
 
+const YT_CHUNK = 1024 * 1024; // 1 MiB — matches what YouTube's own player uses
+const YT_MAX_TOTAL = 100 * 1024 * 1024;
+
+async function fetchDecipheredRange(
+  decipheredUrl: string,
+  start: number,
+  end: number,
+): Promise<ArrayBuffer | null> {
+  const url = new URL(decipheredUrl);
+  url.searchParams.set("range", `${start}-${end}`);
+  // YouTube also accepts &rn= (request number) & &rbuf= hints — behaves better with them.
+  const rn = Number(url.searchParams.get("rn") ?? "0") + 1;
+  url.searchParams.set("rn", String(rn));
+  url.searchParams.set("rbuf", "0");
+  try {
+    const response = await fetch(url.toString(), {
+      headers: {
+        accept: "*/*",
+        "accept-language": "en-US,en;q=0.9",
+        origin: "https://www.youtube.com",
+        referer: "https://www.youtube.com/",
+        "user-agent":
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+        range: `bytes=${start}-${end}`,
+      },
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (!response.ok && response.status !== 206) return null;
+    const buffer = await response.arrayBuffer();
+    return buffer.byteLength ? buffer : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchYoutubeiAudio(
   videoId: string,
   range?: { start: number; end?: number },
@@ -298,60 +333,85 @@ export async function fetchYoutubeiAudio(
       const info = await innertube.getBasicInfo(videoId, poToken ? { po_token: poToken } : undefined);
       const format = info.chooseFormat({ type: "audio", quality: "best", format: "any" } as any) as any;
       const contentLength = Number(format?.content_length ?? format?.contentLength) || undefined;
+      const contentType = String(format?.mime_type ?? format?.mimeType ?? "audio/mp4").split(";")[0];
 
-      if (range && typeof format?.decipher === "function") {
-        const player = (innertube as any)?.session?.player;
-        const decipheredUrl = String(await format.decipher(player));
-        if (decipheredUrl) {
-          const url = new URL(decipheredUrl);
-          url.searchParams.set("range", `${range.start}-${range.end ?? range.start + 1048575}`);
-          const response = await fetch(url.toString(), {
-            headers: {
-              accept: "*/*",
-              origin: "https://www.youtube.com",
-              referer: "https://www.youtube.com",
-              DNT: "?1",
-            },
-            signal: AbortSignal.timeout(60_000),
-          });
-          if (!response.ok) continue;
-          const body = await response.arrayBuffer();
-          if (body.byteLength === 0) continue;
-          return {
-            body,
-            contentType: String(format?.mime_type ?? format?.mimeType ?? "audio/mp4").split(";")[0],
-            contentLength,
-            range: {
-              start: range.start,
-              end: range.start + body.byteLength - 1,
-              total: contentLength,
-            },
-          };
+      // Decipher once, then reuse the same signed URL for every chunk — this is
+      // exactly what YouTube's own player (and Snaptube) does.
+      let decipheredUrl: string | null = null;
+      if (typeof format?.decipher === "function") {
+        try {
+          const player = (innertube as any)?.session?.player;
+          decipheredUrl = withPotParam(String(await format.decipher(player)), poToken);
+        } catch {
+          decipheredUrl = null;
         }
       }
+      if (!decipheredUrl && format?.url) decipheredUrl = withPotParam(String(format.url), poToken);
+      if (!decipheredUrl) continue;
 
-      const stream = (await info.download({
-        type: "audio",
-        quality: "best",
-        format: "any",
-        ...(range ? { range } : {}),
-      } as any)) as ReadableStream<Uint8Array>;
-      const body = await streamToArrayBuffer(stream);
-      if (body.byteLength === 0) continue;
+      // ---- Ranged playback request (audio element seeking) ----
+      if (range) {
+        const start = range.start;
+        const end = Math.min(range.end ?? start + YT_CHUNK - 1, start + YT_CHUNK - 1);
+        const body = await fetchDecipheredRange(decipheredUrl, start, end);
+        if (!body) continue;
+        return {
+          body,
+          contentType,
+          contentLength,
+          range: { start, end: start + body.byteLength - 1, total: contentLength },
+        };
+      }
 
-      const actualRange = range
-        ? {
-            start: range.start,
-            end: range.start + body.byteLength - 1,
-            total: contentLength,
-          }
-        : undefined;
+      // ---- Full download: loop chunks against the same deciphered URL ----
+      const total = contentLength && contentLength > 0 ? contentLength : YT_MAX_TOTAL;
+      if (total > YT_MAX_TOTAL) continue;
 
+      const chunks: Uint8Array[] = [];
+      let downloaded = 0;
+      let cursor = 0;
+      let sawShortChunk = false;
+      while (cursor < total) {
+        const chunkEnd = Math.min(cursor + YT_CHUNK - 1, total - 1);
+        let chunk = await fetchDecipheredRange(decipheredUrl, cursor, chunkEnd);
+        if (!chunk) {
+          // one retry with a fresh decipher — signatures rotate occasionally
+          try {
+            const player = (innertube as any)?.session?.player;
+            const refreshed = withPotParam(String(await format.decipher(player)), poToken);
+            if (refreshed) {
+              decipheredUrl = refreshed;
+              chunk = await fetchDecipheredRange(decipheredUrl, cursor, chunkEnd);
+            }
+          } catch {}
+        }
+        if (!chunk) break;
+        const view = new Uint8Array(chunk);
+        chunks.push(view);
+        downloaded += view.byteLength;
+        // If content-length was unknown and we got a short tail, we're done.
+        if (view.byteLength < chunkEnd - cursor + 1) {
+          sawShortChunk = true;
+          break;
+        }
+        cursor += view.byteLength;
+        if (downloaded >= YT_MAX_TOTAL) break;
+      }
+
+      if (!downloaded) continue;
+      // If we know the expected size, only accept when we got ≥98% of it.
+      if (contentLength && downloaded < Math.floor(contentLength * 0.98) && !sawShortChunk) continue;
+
+      const merged = new Uint8Array(downloaded);
+      let offset = 0;
+      for (const part of chunks) {
+        merged.set(part, offset);
+        offset += part.byteLength;
+      }
       return {
-        body,
-        contentType: String(format?.mime_type ?? format?.mimeType ?? "audio/mp4").split(";")[0],
-        contentLength,
-        range: actualRange,
+        body: merged.buffer,
+        contentType,
+        contentLength: contentLength ?? downloaded,
       };
     } catch {
       continue;
