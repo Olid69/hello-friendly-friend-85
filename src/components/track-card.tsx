@@ -54,8 +54,31 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
   const { isDownloaded } = useDownloads();
   const { playTrack, addToQueue, playNext } = usePlayer();
   const [busy, setBusy] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [candidates, setCandidates] = useState<MirrorCandidate[]>([]);
   const liked = isLiked(track.id);
   const downloaded = isDownloaded(track.id);
+
+  const saveMirror = async (mirror: MirrorCandidate) => {
+    setBusy(true);
+    try {
+      const trackToSave: UnifiedTrack = {
+        ...track,
+        source: mirror.source,
+        streamUrl: mirror.streamUrl,
+        artwork: mirror.artwork || track.artwork,
+        duration: mirror.duration || track.duration,
+      };
+      const url = `/api/public/proxy?u=${encodeURIComponent(mirror.streamUrl!)}`;
+      await saveDownload(trackToSave, url);
+      toast.success(`Downloaded offline from ${mirror.source}`);
+      setPickerOpen(false);
+    } catch {
+      toast.error("Download failed. Try another match.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleDownload = async () => {
     if (downloaded) {
@@ -65,38 +88,32 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
     }
     setBusy(true);
     try {
-      let url = track.streamUrl;
-      let trackToSave = track;
       if (track.source === "youtube" || track.source === "deezer") {
-        const { tracks } = await downloadableAlternatives({
+        const { tracks, verifiedCount } = await downloadableAlternatives({
           data: { title: track.title, artist: track.artist, duration: track.duration },
         });
-        const mirror = tracks.find((item) => item.streamUrl);
-        if (!mirror?.streamUrl) {
-          throw new Error("No verified full-song offline match found for this track. I won't save a different beat as this song.");
+        if (!tracks.length) {
+          throw new Error("No downloadable match found on Jamendo or Audius for this track.");
         }
-        trackToSave = {
-          ...track,
-          source: mirror.source,
-          streamUrl: mirror.streamUrl,
-          artwork: mirror.artwork || track.artwork,
-          duration: mirror.duration || track.duration,
-        };
-        url = `/api/public/proxy?u=${encodeURIComponent(mirror.streamUrl)}`;
-      } else if (url) {
-        // Route through proxy to bypass CORS on arbitrary hosts.
-        url = `/api/public/proxy?u=${encodeURIComponent(url)}`;
+        const verified = tracks.find((t) => (t as MirrorCandidate).verified);
+        if (verified && verifiedCount === 1) {
+          await saveMirror(verified as MirrorCandidate);
+          return;
+        }
+        // Multiple candidates or none verified — let the user pick.
+        setCandidates(tracks as MirrorCandidate[]);
+        setPickerOpen(true);
+        return;
       }
+      const url = track.streamUrl
+        ? `/api/public/proxy?u=${encodeURIComponent(track.streamUrl)}`
+        : null;
       if (!url) throw new Error("no stream");
-      await saveDownload(trackToSave, url);
-      toast.success(
-        (track.source === "youtube" || track.source === "deezer") && trackToSave.source !== track.source
-          ? `Downloaded offline from ${trackToSave.source}`
-          : "Downloaded for offline",
-      );
+      await saveDownload(track, url);
+      toast.success("Downloaded for offline");
     } catch (error) {
       const message =
-        error instanceof Error && /(youtube|offline download|blocked|verified|different beat)/i.test(error.message)
+        error instanceof Error && /(youtube|offline|blocked|verified|match|different beat)/i.test(error.message)
           ? error.message
           : "Download failed. Try Jamendo, Audius, or Deezer if this source blocks saving.";
       toast.error(message);
@@ -104,6 +121,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       setBusy(false);
     }
   };
+
 
   return (
     <DropdownMenu>
