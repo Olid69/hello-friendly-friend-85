@@ -198,11 +198,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (playbackEngine !== "youtube") return;
+    const fallbackDuration = current?.duration ?? 0;
     const timer = window.setInterval(() => {
       const player = youtubePlayerRef.current;
       if (!player?.getCurrentTime) return;
       setProgress(player.getCurrentTime() || 0);
-      setDuration(player.getDuration?.() || current.duration || 0);
+      setDuration(player.getDuration?.() || fallbackDuration);
     }, 500);
     return () => window.clearInterval(timer);
   }, [current, playbackEngine]);
@@ -413,13 +414,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       e.currentTarget === getActiveMedia() && setProgress(e.currentTarget.currentTime),
     onLoadedMetadata: (e: SyntheticEvent<HTMLMediaElement>) =>
       e.currentTarget === getActiveMedia() && setDuration(e.currentTarget.duration),
-    onCanPlay: () => setIsLoading(false),
-    onError: () => {
+    onCanPlay: (e: SyntheticEvent<HTMLMediaElement>) => {
+      if (e.currentTarget === getActiveMedia()) setIsLoading(false);
+    },
+    onError: (e: SyntheticEvent<HTMLMediaElement>) => {
+      if (e.currentTarget !== getActiveMedia()) return;
       setIsLoading(false);
       setIsPlaying(false);
       setError("Playback failed. Try another source or track.");
     },
-    onEnded: () => {
+    onEnded: (e: SyntheticEvent<HTMLMediaElement>) => {
+      if (e.currentTarget !== getActiveMedia()) return;
       finishTrack();
     },
   };
