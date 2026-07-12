@@ -9,6 +9,7 @@ const CORS_HEADERS = {
 
 const CHUNK_SIZE = 1024 * 1024;
 const MAX_DOWNLOAD_BYTES = 80 * 1024 * 1024;
+const MIN_COMPLETE_DOWNLOAD_BYTES = CHUNK_SIZE + 64 * 1024;
 const YOUTUBE_UNAVAILABLE_STATUS = 424;
 const FULL_YOUTUBE_DOWNLOAD_BLOCKED =
   "Full YouTube offline download is currently blocked by YouTube. Stream this track online or download from Jamendo, Audius, or Deezer.";
@@ -66,6 +67,8 @@ function concatChunks(chunks: Uint8Array[], total: number) {
 }
 
 function isCompleteDownload(bodyLength: number, expectedLength?: number) {
+  if (bodyLength < MIN_COMPLETE_DOWNLOAD_BYTES) return false;
+  if (expectedLength && expectedLength < MIN_COMPLETE_DOWNLOAD_BYTES) return false;
   if (!expectedLength) return bodyLength > CHUNK_SIZE;
   return bodyLength >= Math.floor(expectedLength * 0.98);
 }
