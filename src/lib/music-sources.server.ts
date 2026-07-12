@@ -399,8 +399,14 @@ export async function fetchYoutubeiAudio(
       }
 
       if (!downloaded) continue;
-      // If we know the expected size, only accept when we got ≥98% of it.
-      if (contentLength && downloaded < Math.floor(contentLength * 0.98) && !sawShortChunk) continue;
+      // Accept only when the download is provably complete:
+      //  - known content-length reached (≥98%), or
+      //  - natural EOF via a short-tail chunk.
+      // A stalled mid-download (unknown length + last chunk failed) is NOT complete.
+      const looksComplete = contentLength
+        ? downloaded >= Math.floor(contentLength * 0.98)
+        : sawShortChunk;
+      if (!looksComplete) continue;
 
       const merged = new Uint8Array(downloaded);
       let offset = 0;
