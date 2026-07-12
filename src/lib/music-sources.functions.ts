@@ -40,25 +40,26 @@ export const resolveYoutubeStream = createServerFn({ method: "GET" })
   });
 
 export const downloadableAlternatives = createServerFn({ method: "GET" })
-  .inputValidator((d: { title: string; artist?: string; duration?: number }) => d)
+  .inputValidator((d: { title: string; artist?: string; duration?: number; query?: string; strict?: boolean }) => d)
   .handler(async ({ data }) => {
     const title = data.title.trim();
     const artist = data.artist?.trim() ?? "";
-    if (!title) return { tracks: [], verifiedCount: 0 };
+    const manualQuery = data.query?.trim() ?? "";
+    if (!title && !manualQuery) return { tracks: [], verifiedCount: 0 };
 
     const normalize = (value: string) =>
       value
         .toLowerCase()
         .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
-        .replace(/official|video|audio|lyrics?|lyric|visualizer|remaster(?:ed)?|hd|hq|4k|feat\.?|ft\.?/g, " ")
-        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/official|video|audio|lyrics?|lyric|visualizer|remaster(?:ed)?|hd|hq|4k|feat\.?|ft\.?|sped\s*up|slowed|reverb/g, " ")
+        .replace(/[^\p{L}\p{N}\s]/gu, " ")
         .replace(/\s+/g, " ")
         .trim();
 
     const tokens = (value: string) =>
       normalize(value)
         .split(" ")
-        .filter((token) => token.length > 2);
+        .filter((token) => token.length > 1);
 
     const overlap = (a: string, b: string) => {
       const left = tokens(a);
@@ -96,21 +97,43 @@ export const downloadableAlternatives = createServerFn({ method: "GET" })
       return { score, verified };
     };
 
-    const query = [title, artist].filter(Boolean).join(" ");
-    const [jamendo, audius] = await Promise.all([
-      searchJamendo(query, 8),
-      searchAudius(query, 8),
-    ]);
+    const query = manualQuery || [title, artist].filter(Boolean).join(" ");
+    const fallbackQuery = normalize(title) && normalize(title) !== normalize(query) ? title : "";
+    const searches = [query, fallbackQuery].filter(Boolean);
 
-    const scored = [...jamendo, ...audius]
+    const resultSets = await Promise.all(
+      searches.map(async (q) => {
+        const [jamendo, audius] = await Promise.all([
+          searchJamendo(q, 12),
+          searchAudius(q, 12),
+        ]);
+        return [...jamendo, ...audius];
+      }),
+    );
+
+    const seen = new Set<string>();
+    const allTracks = resultSets
+      .flat()
+      .filter((track) => {
+        if (seen.has(track.id)) return false;
+        seen.add(track.id);
+        return true;
+      });
+
+    const strict = data.strict !== false && !manualQuery;
+    const scored = allTracks
       .filter((track) => Boolean(track.streamUrl) && track.duration > 45)
       .map((track) => ({ track, ...scoreMatch(track) }))
-      .filter((entry) => entry.score >= 0.35)
+      .filter((entry) => (strict ? entry.score >= 0.35 : entry.score >= 0.05))
       .sort((a, b) => Number(b.verified) - Number(a.verified) || b.score - a.score)
-      .slice(0, 6);
+      .slice(0, strict ? 8 : 12);
 
     return {
-      tracks: scored.map((entry) => ({ ...entry.track, verified: entry.verified })),
+      tracks: scored.map((entry) => ({
+        ...entry.track,
+        verified: entry.verified,
+        matchScore: Number(entry.score.toFixed(2)),
+      })),
       verifiedCount: scored.filter((entry) => entry.verified).length,
     };
   });
