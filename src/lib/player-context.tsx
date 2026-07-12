@@ -24,6 +24,7 @@ export type UnifiedTrack = {
 };
 
 export type RepeatMode = "off" | "all" | "one";
+type PlaybackEngine = "audio" | "video" | "youtube" | null;
 
 type PlayerContextValue = {
   audioRef: React.RefObject<HTMLAudioElement | null>;
@@ -65,6 +66,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const youtubeContainerRef = useRef<HTMLDivElement | null>(null);
   const youtubePlayerRef = useRef<any>(null);
   const pendingYoutubeVideoIdRef = useRef<string | null>(null);
+  const playbackEngineRef = useRef<PlaybackEngine>(null);
+  const localObjectUrlRef = useRef<string | null>(null);
   const [current, setCurrent] = useState<UnifiedTrack | null>(null);
   const [queue, setQueue] = useState<UnifiedTrack[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -76,6 +79,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playRequestId, setPlayRequestId] = useState(0);
+  const [playbackEngine, setPlaybackEngine] = useState<PlaybackEngine>(null);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
@@ -83,8 +87,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     youtubePlayerRef.current?.setVolume?.(Math.round(volume * 100));
   }, [volume]);
 
-  const getActiveMedia = () =>
-    current?.source === "youtube" ? videoRef.current : audioRef.current;
+  const setEngine = (engine: PlaybackEngine) => {
+    playbackEngineRef.current = engine;
+    setPlaybackEngine(engine);
+  };
+
+  const getActiveMedia = () => {
+    const engine = playbackEngineRef.current;
+    if (engine === "video") return videoRef.current;
+    if (engine === "audio") return audioRef.current;
+    return null;
+  };
+
+  const revokeLocalObjectUrl = () => {
+    if (!localObjectUrlRef.current) return;
+    URL.revokeObjectURL(localObjectUrlRef.current);
+    localObjectUrlRef.current = null;
+  };
 
   const resetMedia = (media: HTMLMediaElement | null) => {
     if (!media) return;
@@ -98,7 +117,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (repeat === "one" && media) {
       media.currentTime = 0;
       media.play().catch(() => {});
-    } else if (repeat === "one" && current?.source === "youtube") {
+    } else if (repeat === "one" && playbackEngineRef.current === "youtube") {
       youtubePlayerRef.current?.seekTo?.(0, true);
       youtubePlayerRef.current?.playVideo?.();
     } else {
@@ -178,7 +197,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (current?.source !== "youtube") return;
+    if (playbackEngine !== "youtube") return;
     const timer = window.setInterval(() => {
       const player = youtubePlayerRef.current;
       if (!player?.getCurrentTime) return;
@@ -186,7 +205,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setDuration(player.getDuration?.() || current.duration || 0);
     }, 500);
     return () => window.clearInterval(timer);
-  }, [current]);
+  }, [current, playbackEngine]);
 
   // Load stream when current changes (resolves YouTube via Piped on demand).
   useEffect(() => {
@@ -210,6 +229,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setIsPlaying(false);
       setProgress(0);
       setDuration(current.duration || 0);
+      revokeLocalObjectUrl();
+      setEngine(null);
       resetMedia(audioRef.current);
       resetMedia(videoRef.current);
 
@@ -222,6 +243,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
       if (localUrl) {
         youtubePlayerRef.current?.stopVideo?.();
+        localObjectUrlRef.current = localUrl;
+        setEngine("audio");
         const media = audioRef.current;
         if (!media) return;
         media.src = localUrl;
@@ -242,6 +265,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (current.source === "youtube") {
         const videoId = current.id.replace(/^youtube:/, "");
         pendingYoutubeVideoIdRef.current = videoId;
+        setEngine("youtube");
         ensureYoutubePlayer();
         youtubePlayerRef.current?.loadVideoById?.(videoId);
         return;
@@ -250,6 +274,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       youtubePlayerRef.current?.stopVideo?.();
       const media = audioRef.current;
       if (!media) return;
+      setEngine("audio");
 
       const url = current.streamUrl;
       if (cancelled) return;
@@ -280,6 +305,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [current, playRequestId]);
+
+  useEffect(() => {
+    return () => revokeLocalObjectUrl();
+  }, []);
 
   // Attach equalizer once media elements are mounted.
   useEffect(() => {
@@ -317,7 +346,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   };
 
   const togglePlay = () => {
-    if (current?.source === "youtube") {
+    if (playbackEngineRef.current === "youtube") {
       const player = youtubePlayerRef.current;
       if (!player) return;
       if (isPlaying) {
@@ -364,7 +393,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   };
 
   const seek = (seconds: number) => {
-    if (current?.source === "youtube") {
+    if (playbackEngineRef.current === "youtube") {
       youtubePlayerRef.current?.seekTo?.(seconds, true);
       setProgress(seconds);
       return;
@@ -381,9 +410,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const mediaHandlers = {
     onTimeUpdate: (e: SyntheticEvent<HTMLMediaElement>) =>
-      setProgress(e.currentTarget.currentTime),
+      e.currentTarget === getActiveMedia() && setProgress(e.currentTarget.currentTime),
     onLoadedMetadata: (e: SyntheticEvent<HTMLMediaElement>) =>
-      setDuration(e.currentTarget.duration),
+      e.currentTarget === getActiveMedia() && setDuration(e.currentTarget.duration),
     onCanPlay: () => setIsLoading(false),
     onError: () => {
       setIsLoading(false);
