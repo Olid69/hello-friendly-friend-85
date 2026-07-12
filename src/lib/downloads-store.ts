@@ -188,7 +188,7 @@ export async function listDownloads(): Promise<DownloadedTrack[]> {
   db.close();
   const downloads = items as DownloadedTrack[];
   const incompleteIds = downloads
-    .filter((item) => isIncompleteYouTubeDownload(item.track, item.blob) || isPreviewOnlyDownload(item.track))
+    .filter((item) => isPreviewOnlyDownload(item.track))
     .map((item) => item.track.id);
   if (incompleteIds.length) {
     await Promise.allSettled(incompleteIds.map((id) => deleteDownload(id)));
