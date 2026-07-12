@@ -79,14 +79,15 @@ async function fetchChunk(url: string, start: number, end: number) {
 
 async function fetchBlobInChunks(url: string): Promise<Blob> {
   const first = await fetchChunk(url, 0, DOWNLOAD_CHUNK_SIZE - 1);
-  const total = first.range?.total;
-  if (!total) return new Blob([first.bytes], { type: first.contentType });
+  const firstRange = first.range;
+  if (!firstRange?.total) return new Blob([first.bytes], { type: first.contentType });
+  const total = firstRange.total;
   if (total > MAX_CHUNKED_DOWNLOAD_BYTES) {
     throw new Error("This YouTube file is too large for offline download.");
   }
 
   const chunks = [first.bytes];
-  let nextStart = first.range.end + 1;
+  let nextStart = firstRange.end + 1;
   while (nextStart < total) {
     const end = Math.min(nextStart + DOWNLOAD_CHUNK_SIZE - 1, total - 1);
     const chunk = await fetchChunk(url, nextStart, end);
