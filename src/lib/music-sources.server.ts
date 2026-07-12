@@ -250,6 +250,105 @@ function extractBestYoutubeiAudio(info: any, poToken?: string): string | null {
   return pickAudio(muxed);
 }
 
+function getYoutubeFormatContentType(format: any) {
+  return String(format?.mime_type ?? format?.mimeType ?? "audio/mp4").split(";")[0];
+}
+
+function getYoutubeFormatContentLength(format: any) {
+  const length = Number(format?.content_length ?? format?.contentLength);
+  return Number.isFinite(length) && length > 0 ? length : undefined;
+}
+
+function getYoutubeUrlContentLength(value: string) {
+  try {
+    const length = Number(new URL(value).searchParams.get("clen"));
+    return Number.isFinite(length) && length > 0 ? length : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getProgressiveYoutubeFormats(info: any) {
+  const formats = (info?.streaming_data?.formats ?? []) as any[];
+  return formats
+    .filter((format) => {
+      const mime = String(format?.mime_type ?? format?.mimeType ?? "");
+      const hasAudio = format?.has_audio ?? format?.hasAudio;
+      const hasVideo = format?.has_video ?? format?.hasVideo;
+      return hasAudio && hasVideo && mime.includes("mp4");
+    })
+    .sort((a, b) => {
+      const aLength = getYoutubeFormatContentLength(a) ?? Number.MAX_SAFE_INTEGER;
+      const bLength = getYoutubeFormatContentLength(b) ?? Number.MAX_SAFE_INTEGER;
+      return aLength - bLength;
+    });
+}
+
+async function decipherYoutubeFormatUrl(
+  format: any,
+  innertube: Awaited<ReturnType<typeof Innertube.create>>,
+  poToken?: string,
+) {
+  if (format?.url) return withPotParam(String(format.url), poToken);
+  if (typeof format?.decipher !== "function") return null;
+  try {
+    const player = (innertube as any)?.session?.player;
+    return withPotParam(String(await format.decipher(player)), poToken);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchWholeYoutubeFormat(
+  format: any,
+  innertube: Awaited<ReturnType<typeof Innertube.create>>,
+  poToken?: string,
+) {
+  const rawUrl = await decipherYoutubeFormatUrl(format, innertube, poToken);
+  if (!rawUrl) return null;
+
+  let url = rawUrl;
+  try {
+    const parsed = new URL(rawUrl);
+    // Some signed URLs arrive with a one-chunk `range` query. For full offline
+    // saves we must request the progressive file itself, not that first slice.
+    parsed.searchParams.delete("range");
+    parsed.searchParams.delete("rn");
+    parsed.searchParams.delete("rbuf");
+    url = parsed.toString();
+  } catch {}
+
+  const expectedLength = getYoutubeFormatContentLength(format) ?? getYoutubeUrlContentLength(url);
+  if (expectedLength && expectedLength > YT_MAX_TOTAL) return null;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        accept: "audio/*,video/*,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9",
+        "user-agent":
+          "com.google.android.youtube/21.03.36(Linux; U; Android 16; en_US; SM-S908E Build/TP1A.220624.014) gzip",
+      },
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!response.ok) return null;
+    const body = await response.arrayBuffer();
+    const responseLength = Number(response.headers.get("content-length")) || undefined;
+    const contentLength = expectedLength ?? responseLength;
+    const complete = contentLength
+      ? body.byteLength >= Math.floor(contentLength * 0.98)
+      : body.byteLength > YT_CHUNK + 64 * 1024;
+    if (!complete) return null;
+    return {
+      body,
+      contentType: getYoutubeFormatContentType(format),
+      contentLength: contentLength ?? body.byteLength,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function streamToArrayBuffer(stream: ReadableStream<Uint8Array>) {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
@@ -334,9 +433,20 @@ export async function fetchYoutubeiAudio(
       }
 
       const info = await innertube.getBasicInfo(videoId, poToken ? { po_token: poToken } : undefined);
+
+      // Full offline save: first try progressive MP4 (audio+video) formats.
+      // Mobile YouTube clients still expose these as one complete file, while
+      // modern audio-only GVS links often require a PO token after the first 1MB.
+      if (!range) {
+        for (const progressiveFormat of getProgressiveYoutubeFormats(info)) {
+          const direct = await fetchWholeYoutubeFormat(progressiveFormat, innertube, poToken);
+          if (direct) return direct;
+        }
+      }
+
       const format = info.chooseFormat({ type: "audio", quality: "best", format: "any" } as any) as any;
-      const contentLength = Number(format?.content_length ?? format?.contentLength) || undefined;
-      const contentType = String(format?.mime_type ?? format?.mimeType ?? "audio/mp4").split(";")[0];
+      const contentLength = getYoutubeFormatContentLength(format);
+      const contentType = getYoutubeFormatContentType(format);
 
       // Decipher once, then reuse the same signed URL for every chunk — this is
       // exactly what YouTube's own player (and Snaptube) does.
