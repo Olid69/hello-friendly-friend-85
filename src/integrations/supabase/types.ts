@@ -14,7 +14,99 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      liked_tracks: {
+        Row: {
+          liked_at: string
+          track: Json
+          track_id: string
+          user_id: string
+        }
+        Insert: {
+          liked_at?: string
+          track: Json
+          track_id: string
+          user_id: string
+        }
+        Update: {
+          liked_at?: string
+          track?: Json
+          track_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      playlists: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          tracks: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          tracks?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          tracks?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      recent_tracks: {
+        Row: {
+          played_at: string
+          track: Json
+          track_id: string
+          user_id: string
+        }
+        Insert: {
+          played_at?: string
+          track: Json
+          track_id: string
+          user_id: string
+        }
+        Update: {
+          played_at?: string
+          track?: Json
+          track_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
