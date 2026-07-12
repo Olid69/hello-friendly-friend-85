@@ -149,6 +149,11 @@ async function fetchCompleteAudio(streamUrl: string) {
 // side, so full audio streams are returned even when direct Worker fetches
 // get throttled to 1MB stubs.
 const COBALT_INSTANCES = [
+  "https://api.cobalt.liubquanti.click",
+  "https://rue-cobalt.xenon.zone",
+  "https://dog.kittycat.boo",
+  "https://cobaltapi.kittycat.boo",
+  "https://cobaltapi.cjs.nz",
   "https://cobalt-backend.canine.tools",
   "https://co.eepy.today",
   "https://dl01.yt-dl.click",
@@ -166,7 +171,7 @@ async function fetchViaCobalt(
         headers: {
           accept: "application/json",
           "content-type": "application/json",
-          "user-agent": "Mozilla/5.0",
+          "user-agent": "sonora-personal/1.0 (+https://lovable.dev)",
         },
         body: JSON.stringify({
           url: youtubeUrl,
@@ -185,11 +190,15 @@ async function fetchViaCobalt(
         continue;
       }
       const media = await fetch(data.url, {
-        headers: { accept: "audio/*,*/*;q=0.8" },
+        headers: {
+          accept: "audio/*,*/*;q=0.8",
+          "user-agent": "sonora-personal/1.0 (+https://lovable.dev)",
+        },
         signal: AbortSignal.timeout(120_000),
       });
       if (!media.ok) continue;
       const body = await media.arrayBuffer();
+      if (body.byteLength > MAX_DOWNLOAD_BYTES) continue;
       if (body.byteLength < MIN_FULL_DOWNLOAD_BYTES) continue;
       return {
         body,
