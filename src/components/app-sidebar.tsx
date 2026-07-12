@@ -12,7 +12,6 @@ import {
   Sliders,
   Mic2,
   LogIn,
-  User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
