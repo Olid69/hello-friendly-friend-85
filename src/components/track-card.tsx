@@ -16,7 +16,7 @@ import {
 import { usePlayer, type UnifiedTrack } from "@/lib/player-context";
 import { useLiked, usePlaylists } from "@/lib/library-store";
 import { useDownloads, saveDownload, deleteDownload } from "@/lib/downloads-store";
-import { downloadableAlternatives } from "@/lib/music-sources.functions";
+import { downloadableAlternatives, youtubeDownloadCandidates } from "@/lib/music-sources.functions";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -62,6 +62,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
   const { isDownloaded } = useDownloads();
   const { playTrack, addToQueue, playNext } = usePlayer();
   const fetchAlternatives = useServerFn(downloadableAlternatives);
+  const fetchYoutubeCandidates = useServerFn(youtubeDownloadCandidates);
   const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [candidates, setCandidates] = useState<MirrorCandidate[]>([]);
@@ -145,6 +146,30 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
           toast.success("Downloaded for offline");
           return;
         } catch {
+          const youtubeFallbacks = await fetchYoutubeCandidates({
+            data: {
+              title: track.title,
+              artist: track.artist,
+              duration: track.duration,
+              excludeId: videoId,
+            },
+          }).catch(() => ({ tracks: [] as MirrorCandidate[] }));
+
+          for (const fallback of youtubeFallbacks.tracks as MirrorCandidate[]) {
+            const fallbackVideoId = fallback.id.replace(/^youtube:/, "");
+            if (!fallbackVideoId) continue;
+            try {
+              await saveDownload(
+                { ...track, artwork: fallback.artwork || track.artwork, duration: fallback.duration || track.duration },
+                `/api/public/youtube-audio?videoId=${encodeURIComponent(fallbackVideoId)}&download=1`,
+              );
+              toast.success("Downloaded using a full YouTube video match");
+              return;
+            } catch {
+              continue;
+            }
+          }
+
           const q = [track.title, track.artist].filter(Boolean).join(" ");
           setCandidateQuery(q);
           setCandidates([]);

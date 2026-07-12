@@ -161,6 +161,38 @@ export async function searchPiped(query: string): Promise<UnifiedTrack[]> {
     });
 }
 
+function mapPipedStreamItem(t: any): UnifiedTrack | null {
+  const id = String(t.url ?? "").replace("/watch?v=", "").split("&")[0];
+  if (!id) return null;
+  return {
+    id: `youtube:${id}`,
+    source: "youtube" as const,
+    title: t.title ?? "Unknown",
+    artist: t.uploaderName ?? "Unknown",
+    artwork: t.thumbnail ?? "",
+    duration: t.duration ?? 0,
+  } satisfies UnifiedTrack;
+}
+
+export async function searchPipedVideos(query: string, limit = 12): Promise<UnifiedTrack[]> {
+  const seen = new Set<string>();
+  const results: UnifiedTrack[] = [];
+  for (const filter of ["music_videos", "videos", "all"]) {
+    const json = await pipedFetch(
+      `/search?q=${encodeURIComponent(query)}&filter=${filter}`,
+    );
+    for (const item of (json?.items ?? []) as any[]) {
+      if (item.type !== "stream") continue;
+      const track = mapPipedStreamItem(item);
+      if (!track || seen.has(track.id)) continue;
+      seen.add(track.id);
+      results.push(track);
+      if (results.length >= limit) return results;
+    }
+  }
+  return results;
+}
+
 const INVIDIOUS_INSTANCES = [
   "https://inv.nadeko.net",
   "https://invidious.nerdvpn.de",

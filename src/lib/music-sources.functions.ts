@@ -7,6 +7,7 @@ import {
   searchDeezer,
   searchJamendo,
   searchPiped,
+  searchPipedVideos,
   trendingAudius,
 } from "./music-sources.server";
 
@@ -37,6 +38,64 @@ export const resolveYoutubeStream = createServerFn({ method: "GET" })
   .inputValidator((d: { videoId: string }) => d)
   .handler(async ({ data }) => {
     return { streamUrl: await resolvePipedStream(data.videoId) };
+  });
+
+export const youtubeDownloadCandidates = createServerFn({ method: "GET" })
+  .inputValidator((d: { title: string; artist?: string; duration?: number; excludeId?: string }) => d)
+  .handler(async ({ data }) => {
+    const title = data.title.trim();
+    const artist = data.artist?.trim() ?? "";
+    const query = [title, artist].filter(Boolean).join(" ").trim();
+    if (!query) return { tracks: [] };
+
+    const normalize = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
+        .replace(/official|music|video|audio|lyrics?|lyric|visualizer|remaster(?:ed)?|hd|hq|4k|feat\.?|ft\.?/g, " ")
+        .replace(/[^\p{L}\p{N}\s]/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const tokens = (value: string) => normalize(value).split(" ").filter((token) => token.length > 1);
+    const overlap = (left: string, right: string) => {
+      const wanted = tokens(left);
+      const got = new Set(tokens(right));
+      if (!wanted.length || !got.size) return 0;
+      return wanted.filter((token) => got.has(token)).length / wanted.length;
+    };
+
+    const targetDuration = Number(data.duration) || 0;
+    const tracks = await searchPipedVideos(query, 12);
+    const scored = tracks
+      .filter((track) => track.id.replace(/^youtube:/, "") !== data.excludeId)
+      .filter((track) => track.duration > 45)
+      .map((track) => {
+        const titleScore = Math.max(overlap(title, track.title), overlap(track.title, title));
+        const artistScore = artist ? Math.max(overlap(artist, track.artist), overlap(track.artist, artist)) : 0.5;
+        const durationDiff = targetDuration ? Math.abs(track.duration - targetDuration) : 0;
+        const durationScore = !targetDuration
+          ? 0.5
+          : durationDiff <= 12
+            ? 1
+            : durationDiff <= 45
+              ? 0.85
+              : durationDiff <= 90
+                ? 0.55
+                : 0.2;
+        const officialBoost = /official|audio|lyrics?|lyric/i.test(track.title) ? 0.08 : 0;
+        const score = titleScore * 0.52 + artistScore * 0.26 + durationScore * 0.22 + officialBoost;
+        return { track, score: Math.min(score, 1) };
+      })
+      .filter((entry) => entry.score >= 0.48)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6);
+
+    return {
+      tracks: scored.map((entry) => ({
+        ...entry.track,
+        matchScore: Number(entry.score.toFixed(2)),
+      })),
+    };
   });
 
 export const downloadableAlternatives = createServerFn({ method: "GET" })
