@@ -38,3 +38,22 @@ export const resolveYoutubeStream = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     return { streamUrl: await resolvePipedStream(data.videoId) };
   });
+
+export const downloadableAlternatives = createServerFn({ method: "GET" })
+  .inputValidator((d: { title: string; artist?: string }) => d)
+  .handler(async ({ data }) => {
+    const title = data.title.trim();
+    const artist = data.artist?.trim() ?? "";
+    if (!title) return { tracks: [] };
+
+    const query = [title, artist].filter(Boolean).join(" ");
+    const [jamendo, audius, deezer] = await Promise.all([
+      searchJamendo(query, 8),
+      searchAudius(query, 8),
+      searchDeezer(query, 8),
+    ]);
+
+    return {
+      tracks: [...jamendo, ...audius, ...deezer].filter((track) => Boolean(track.streamUrl)),
+    };
+  });

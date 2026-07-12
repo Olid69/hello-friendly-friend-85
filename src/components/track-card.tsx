@@ -14,6 +14,7 @@ import {
 import { usePlayer, type UnifiedTrack } from "@/lib/player-context";
 import { useLiked, usePlaylists } from "@/lib/library-store";
 import { useDownloads, saveDownload, deleteDownload } from "@/lib/downloads-store";
+import { downloadableAlternatives } from "@/lib/music-sources.functions";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -53,16 +54,34 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
     setBusy(true);
     try {
       let url = track.streamUrl;
+      let trackToSave = track;
       if (track.source === "youtube") {
-        const videoId = track.id.replace(/^youtube:/, "");
-        url = `/api/public/youtube-audio?videoId=${encodeURIComponent(videoId)}`;
+        const { tracks } = await downloadableAlternatives({
+          data: { title: track.title, artist: track.artist },
+        });
+        const mirror = tracks.find((item) => item.streamUrl);
+        if (!mirror?.streamUrl) {
+          throw new Error("No offline mirror found from Jamendo, Audius, or Deezer for this YouTube track.");
+        }
+        trackToSave = {
+          ...track,
+          source: mirror.source,
+          streamUrl: mirror.streamUrl,
+          artwork: mirror.artwork || track.artwork,
+          duration: mirror.duration || track.duration,
+        };
+        url = `/api/public/proxy?u=${encodeURIComponent(mirror.streamUrl)}`;
       } else if (url) {
         // Route through proxy to bypass CORS on arbitrary hosts.
         url = `/api/public/proxy?u=${encodeURIComponent(url)}`;
       }
       if (!url) throw new Error("no stream");
-      await saveDownload(track, url);
-      toast.success("Downloaded for offline");
+      await saveDownload(trackToSave, url);
+      toast.success(
+        track.source === "youtube" && trackToSave.source !== "youtube"
+          ? `Downloaded offline from ${trackToSave.source}`
+          : "Downloaded for offline",
+      );
     } catch (error) {
       const message =
         error instanceof Error && /(youtube|offline download|blocked)/i.test(error.message)
