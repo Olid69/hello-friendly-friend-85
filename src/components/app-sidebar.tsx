@@ -11,8 +11,11 @@ import {
   Download,
   Sliders,
   Mic2,
+  LogIn,
+  User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 
 const navItems = [
   { to: "/", label: "Home", icon: Home },
