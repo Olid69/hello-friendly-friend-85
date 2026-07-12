@@ -154,11 +154,6 @@ export async function saveDownload(track: UnifiedTrack, streamUrl: string) {
   if (isPreviewOnlyDownload(track)) {
     throw new Error("Deezer only provides 30-second previews here. Use Jamendo or Audius for full offline downloads.");
   }
-  if (isIncompleteYouTubeDownload(track, blob)) {
-    throw new Error(
-      "Full YouTube offline download is currently blocked by YouTube. Stream this track online or download from Jamendo, Audius, or Deezer.",
-    );
-  }
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
