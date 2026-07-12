@@ -38,6 +38,9 @@ type PlayerContextValue = {
   isLoading: boolean;
   error: string | null;
   playTrack: (track: UnifiedTrack, queue?: UnifiedTrack[]) => void;
+  addToQueue: (track: UnifiedTrack) => void;
+  playNext: (track: UnifiedTrack) => void;
+  removeFromQueue: (id: string) => void;
   togglePlay: () => void;
   next: () => void;
   prev: () => void;
