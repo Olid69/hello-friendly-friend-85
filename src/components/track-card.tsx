@@ -57,11 +57,11 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       let trackToSave = track;
       if (track.source === "youtube" || track.source === "deezer") {
         const { tracks } = await downloadableAlternatives({
-          data: { title: track.title, artist: track.artist },
+          data: { title: track.title, artist: track.artist, duration: track.duration },
         });
         const mirror = tracks.find((item) => item.streamUrl);
         if (!mirror?.streamUrl) {
-          throw new Error("No full offline mirror found from Jamendo or Audius for this track.");
+          throw new Error("No verified full-song offline match found for this track. I won't save a different beat as this song.");
         }
         trackToSave = {
           ...track,
@@ -84,7 +84,7 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
       );
     } catch (error) {
       const message =
-        error instanceof Error && /(youtube|offline download|blocked)/i.test(error.message)
+        error instanceof Error && /(youtube|offline download|blocked|verified|different beat)/i.test(error.message)
           ? error.message
           : "Download failed. Try Jamendo, Audius, or Deezer if this source blocks saving.";
       toast.error(message);
