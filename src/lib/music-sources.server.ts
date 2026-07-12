@@ -1,4 +1,5 @@
 import type { UnifiedTrack } from "./player-context";
+import { ClientType, Innertube } from "youtubei.js/cf-worker";
 
 // ---------- Audius ----------
 let audiusHost: string | null = null;
@@ -176,6 +177,107 @@ function pickAudio(audios: Array<{ url?: string; bitrate?: number }>): string | 
   return playable[0]?.url ?? null;
 }
 
+async function canFetchMedia(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        range: "bytes=0-1023",
+        accept: "audio/*,video/*,*/*;q=0.8",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return false;
+    await res.body?.cancel().catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+type YoutubeiClient = {
+  name: string;
+  type: ClientType;
+};
+
+const YOUTUBEI_CLIENTS: YoutubeiClient[] = [
+  { name: "ios", type: ClientType.IOS },
+  { name: "android", type: ClientType.ANDROID },
+  { name: "android-music", type: ClientType.ANDROID_MUSIC },
+  { name: "mweb", type: ClientType.MWEB },
+  { name: "web", type: ClientType.WEB },
+];
+
+let youtubeiSessions = new Map<string, Awaited<ReturnType<typeof Innertube.create>>>();
+
+function withPotParam(url: string, poToken?: string): string {
+  if (!poToken) return url;
+  try {
+    const parsed = new URL(url);
+    if (!parsed.searchParams.has("pot")) parsed.searchParams.set("pot", poToken);
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+function extractBestYoutubeiAudio(info: any, poToken?: string): string | null {
+  const streamingData = info?.streaming_data;
+  const formats = [
+    ...(streamingData?.adaptive_formats ?? []),
+    ...(streamingData?.formats ?? []),
+  ] as any[];
+  const audios = formats
+    .filter((format) => {
+      const mime = String(format?.mime_type ?? format?.mimeType ?? "");
+      return format?.url && mime.startsWith("audio");
+    })
+    .map((format) => ({
+      url: withPotParam(String(format.url), poToken),
+      bitrate: Number(format.bitrate ?? format.average_bitrate ?? format.averageBitrate) || 0,
+    }));
+  const audio = pickAudio(audios);
+  if (audio) return audio;
+
+  const muxed = formats
+    .filter((format) => format?.url)
+    .map((format) => ({
+      url: withPotParam(String(format.url), poToken),
+      bitrate: Number(format.bitrate ?? format.average_bitrate ?? format.averageBitrate) || 0,
+    }));
+  return pickAudio(muxed);
+}
+
+async function resolveYoutubeiStream(videoId: string): Promise<string | null> {
+  const poToken = process.env.YOUTUBE_PO_TOKEN;
+  const visitorData = process.env.YOUTUBE_VISITOR_DATA;
+
+  for (const client of YOUTUBEI_CLIENTS) {
+    try {
+      const cacheKey = `${client.name}:${poToken ?? ""}:${visitorData ?? ""}`;
+      let innertube = youtubeiSessions.get(cacheKey);
+      if (!innertube) {
+        innertube = await Innertube.create({
+          client_type: client.type,
+          retrieve_player: true,
+          generate_session_locally: true,
+          enable_session_cache: false,
+          ...(poToken ? { po_token: poToken } : {}),
+          ...(visitorData ? { visitor_data: visitorData } : {}),
+        });
+        youtubeiSessions.set(cacheKey, innertube);
+      }
+
+      const info = await innertube.getBasicInfo(videoId, poToken ? { po_token: poToken } : undefined);
+      const stream = extractBestYoutubeiAudio(info, poToken);
+      if (stream) return stream;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 export async function resolvePipedStream(
   videoId: string,
 ): Promise<string | null> {
@@ -190,7 +292,7 @@ export async function resolvePipedStream(
       if (!res.ok) continue;
       const json = (await res.json()) as any;
       const audio = pickAudio(json?.audioStreams ?? []);
-      if (audio) return audio;
+      if (audio && (await canFetchMedia(audio))) return audio;
       const videos = (json?.videoStreams ?? []) as Array<{
         url?: string;
         quality?: string;
@@ -203,7 +305,7 @@ export async function resolvePipedStream(
           const bq = Number.parseInt(b.quality ?? "0", 10) || 0;
           return aq - bq;
         });
-        if (muxed[0]?.url) return muxed[0].url;
+        if (muxed[0]?.url && (await canFetchMedia(muxed[0].url))) return muxed[0].url;
       }
     } catch {
       continue;
@@ -231,14 +333,17 @@ export async function resolvePipedStream(
         .filter((f) => f.url && (f.type ?? "").startsWith("audio"))
         .map((f) => ({ url: f.url, bitrate: Number(f.bitrate) || 0 }));
       const audio = pickAudio(audios);
-      if (audio) return audio;
+      if (audio && (await canFetchMedia(audio))) return audio;
       const formats = (json?.formatStreams ?? []) as Array<{ url?: string }>;
       const muxed = formats.find((f) => f.url);
-      if (muxed?.url) return muxed.url;
+      if (muxed?.url && (await canFetchMedia(muxed.url))) return muxed.url;
     } catch {
       continue;
     }
   }
+
+  const youtubei = await resolveYoutubeiStream(videoId);
+  if (youtubei && (await canFetchMedia(youtubei))) return youtubei;
 
   return null;
 }
