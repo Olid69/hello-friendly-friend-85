@@ -200,9 +200,12 @@ type YoutubeiClient = {
 };
 
 const YOUTUBEI_CLIENTS: YoutubeiClient[] = [
+  { name: "android-vr", type: ClientType.ANDROID_VR },
+  { name: "tv-embedded", type: ClientType.TV_EMBEDDED },
   { name: "ios", type: ClientType.IOS },
   { name: "android", type: ClientType.ANDROID },
   { name: "android-music", type: ClientType.ANDROID_MUSIC },
+  { name: "tv", type: ClientType.TV },
   { name: "mweb", type: ClientType.MWEB },
   { name: "web", type: ClientType.WEB },
 ];
@@ -363,7 +366,30 @@ export async function fetchYoutubeiAudio(
         };
       }
 
-      // ---- Full download: loop chunks against the same deciphered URL ----
+      // ---- Full download: prefer youtubei.js's own streaming pipeline. It
+      // handles n-parameter rotation + sequential range continuation the way
+      // YouTube's player expects, which no manual loop can reliably reproduce
+      // without a valid PoToken.
+      try {
+        const stream = (await info.download({
+          type: "audio",
+          quality: "best",
+          format: "any",
+        } as any)) as ReadableStream<Uint8Array>;
+        const body = await streamToArrayBuffer(stream);
+        if (body.byteLength > 0) {
+          const complete = contentLength
+            ? body.byteLength >= Math.floor(contentLength * 0.98)
+            : body.byteLength > YT_CHUNK + 64 * 1024; // >1MB stub guard
+          if (complete) {
+            return { body, contentType, contentLength: contentLength ?? body.byteLength };
+          }
+        }
+      } catch {
+        // fall through to manual chunk loop
+      }
+
+      // ---- Manual chunk loop (final attempt) ----
       const total = contentLength && contentLength > 0 ? contentLength : YT_MAX_TOTAL;
       if (total > YT_MAX_TOTAL) continue;
 
@@ -399,8 +425,14 @@ export async function fetchYoutubeiAudio(
       }
 
       if (!downloaded) continue;
-      // If we know the expected size, only accept when we got ≥98% of it.
-      if (contentLength && downloaded < Math.floor(contentLength * 0.98) && !sawShortChunk) continue;
+      // Accept only when the download is provably complete:
+      //  - known content-length reached (≥98%), or
+      //  - natural EOF via a short-tail chunk.
+      // A stalled mid-download (unknown length + last chunk failed) is NOT complete.
+      const looksComplete = contentLength
+        ? downloaded >= Math.floor(contentLength * 0.98)
+        : sawShortChunk;
+      if (!looksComplete) continue;
 
       const merged = new Uint8Array(downloaded);
       let offset = 0;
