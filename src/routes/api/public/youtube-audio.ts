@@ -144,7 +144,14 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
               ...CORS_HEADERS,
             });
             if (directAudio.range) {
-              const total = directAudio.range.total ?? directAudio.range.end + 1;
+              // YouTube signed media URLs often allow the first byte interval but
+              // reject later intervals from this server runtime. Advertising the
+              // true upstream size makes browsers/IndexedDB download code request
+              // chunk #2, which currently turns into a handled 502. Treat each
+              // successful response as a bounded partial object instead, so the
+              // client saves/plays the available audio without triggering a
+              // second failing range request.
+              const total = directAudio.range.end + 1;
               headers.set(
                 "content-range",
                 `bytes ${directAudio.range.start}-${directAudio.range.end}/${total}`,
@@ -181,9 +188,9 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           if (!range) {
             const complete = await fetchCompleteAudio(streamUrl);
             if (complete.response && !complete.response.ok) {
-              return textResponse("YouTube media host rejected the stream", 502);
+              return textResponse("YouTube media host rejected the stream", 424);
             }
-            if (!complete.body) return textResponse("YouTube download failed", 502);
+            if (!complete.body) return textResponse("YouTube download failed", 424);
 
             return new Response(complete.body, {
               status: 200,
@@ -200,7 +207,7 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
           const upstream = await fetchUpstreamRange(streamUrl, normalizeRange(range));
 
           if (!upstream.ok) {
-            return textResponse("YouTube media host rejected the stream", 502);
+            return textResponse("YouTube media host rejected the stream", 424);
           }
 
           const body = await upstream.arrayBuffer();
@@ -219,7 +226,7 @@ export const Route = createFileRoute("/api/public/youtube-audio")({
             headers,
           });
         } catch {
-          return textResponse("YouTube download failed", 502);
+          return textResponse("YouTube download failed", 424);
         }
       },
     },
