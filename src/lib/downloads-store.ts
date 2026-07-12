@@ -6,7 +6,6 @@ const STORE = "tracks";
 const VERSION = 1;
 const DOWNLOAD_CHUNK_SIZE = 1024 * 1024;
 const MAX_CHUNKED_DOWNLOAD_BYTES = 80 * 1024 * 1024;
-const INCOMPLETE_YOUTUBE_BYTES = 1280 * 1024;
 
 export type DownloadedTrack = {
   track: UnifiedTrack;
@@ -14,13 +13,10 @@ export type DownloadedTrack = {
   savedAt: number;
 };
 
-function isIncompleteYouTubeDownload(track: UnifiedTrack, blob: Blob) {
-  return track.source === "youtube" && track.duration > 60 && blob.size <= INCOMPLETE_YOUTUBE_BYTES;
-}
-
 function isPreviewOnlyDownload(track: UnifiedTrack) {
   return track.source === "deezer";
 }
+
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -158,11 +154,6 @@ export async function saveDownload(track: UnifiedTrack, streamUrl: string) {
   if (isPreviewOnlyDownload(track)) {
     throw new Error("Deezer only provides 30-second previews here. Use Jamendo or Audius for full offline downloads.");
   }
-  if (isIncompleteYouTubeDownload(track, blob)) {
-    throw new Error(
-      "Full YouTube offline download is currently blocked by YouTube. Stream this track online or download from Jamendo, Audius, or Deezer.",
-    );
-  }
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
@@ -197,7 +188,7 @@ export async function listDownloads(): Promise<DownloadedTrack[]> {
   db.close();
   const downloads = items as DownloadedTrack[];
   const incompleteIds = downloads
-    .filter((item) => isIncompleteYouTubeDownload(item.track, item.blob) || isPreviewOnlyDownload(item.track))
+    .filter((item) => isPreviewOnlyDownload(item.track))
     .map((item) => item.track.id);
   if (incompleteIds.length) {
     await Promise.allSettled(incompleteIds.map((id) => deleteDownload(id)));
@@ -215,7 +206,7 @@ export async function getDownloadBlobUrl(id: string): Promise<string | null> {
   });
   db.close();
   if (!item) return null;
-  if (isIncompleteYouTubeDownload(item.track, item.blob) || isPreviewOnlyDownload(item.track)) {
+  if (isPreviewOnlyDownload(item.track)) {
     await deleteDownload(id);
     return null;
   }
