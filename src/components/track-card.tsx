@@ -148,7 +148,10 @@ export function TrackMenu({ track }: { track: UnifiedTrack }) {
           const q = [track.title, track.artist].filter(Boolean).join(" ");
           setCandidateQuery(q);
           setCandidates([]);
-          await openMirrorPicker(q, true, true);
+          const mirror = await openMirrorPicker(q, true, false);
+          if (!mirror.hasReliableMatch) {
+            toast.error("YouTube blocked the full save, and no safe Jamendo/Audius full-song match was found.");
+          }
           return;
         }
       }
