@@ -11,7 +11,10 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-const APK_PATH = "/sonora.apk";
+// Prefer GitHub Release URL (auto-built by .github/workflows/build-apk.yml).
+// Set VITE_APK_URL in env, e.g. https://github.com/<user>/<repo>/releases/latest/download/sonora.apk
+const APK_PATH =
+  (import.meta.env.VITE_APK_URL as string | undefined) ?? "/sonora.apk";
 
 export const Route = createFileRoute("/get-app")({
   head: () => ({
