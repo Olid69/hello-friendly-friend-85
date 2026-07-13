@@ -20,9 +20,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <Menu className="h-5 w-5" />
             </SheetTrigger>
             <SheetContent side="left" className="w-72 p-0 bg-sidebar border-sidebar-border">
-              <VisuallyHidden>
-                <SheetTitle>Navigation</SheetTitle>
-              </VisuallyHidden>
+              <SheetTitle className="sr-only">Navigation</SheetTitle>
               <AppSidebar variant="mobile" onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
