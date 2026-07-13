@@ -33,19 +33,38 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          yes | sdkmanager --licenses >/dev/null
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Verify Capacitor CLI
-        run: bun run cap --version
+        run: |
+          node --version
+          bun --version
+          bun run cap --version
 
       - name: Build web bundle
         run: bun run build
 
+      - name: Verify web bundle for APK
+        run: |
+          if [ ! -f "dist/client/index.html" ]; then
+            echo "::error::Capacitor webDir is dist/client, but dist/client/index.html was not created."
+            echo "dist contents:"
+            ls -la dist || true
+            echo "dist/client contents:"
+            ls -la dist/client || true
+            exit 1
+          fi
+
       - name: Add Android platform (if missing)
         run: |
           if [ ! -d "android" ]; then
-            bun run cap add android
+            bun run cap add android --no-sync
           fi
 
       - name: Sync Capacitor
@@ -56,12 +75,19 @@ jobs:
 
       - name: Build debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Rename APK
+      - name: Collect APK
         run: |
           mkdir -p artifact
-          cp android/app/build/outputs/apk/debug/app-debug.apk artifact/sonora.apk
+          APK_PATH="$(find android/app/build/outputs/apk -name '*.apk' | sort | head -n 1)"
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::Gradle finished but no APK was found."
+            find android/app/build/outputs -maxdepth 5 -type f || true
+            exit 1
+          fi
+          cp "$APK_PATH" artifact/sonora.apk
+          ls -lh artifact/sonora.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

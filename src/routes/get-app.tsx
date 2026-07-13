@@ -111,9 +111,9 @@ function GetAppPage() {
             <div className="inline-flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>
-                APK not uploaded yet. Build it with the commands below, then drop
-                <code className="mx-1 rounded bg-background/60 px-1">sonora.apk</code>
-                into the project&apos;s <code className="rounded bg-background/60 px-1">public/</code> folder and redeploy.
+                APK is not available at this download URL yet. Let GitHub Actions
+                finish successfully, then set <code className="mx-1 rounded bg-background/60 px-1">VITE_APK_URL</code>
+                to the latest release APK link and redeploy.
               </span>
             </div>
           )}
@@ -239,8 +239,8 @@ function GetAppPage() {
           <pre className="mt-3 overflow-x-auto rounded-lg bg-background p-4 text-xs font-mono">
 {`bun install
 bun run build
-bunx cap add android            # first time only
-bunx cap sync android
+bun run cap add android --no-sync # first time only
+bun run cap sync android
 cd android && ./gradlew assembleDebug
 # APK: android/app/build/outputs/apk/debug/app-debug.apk`}
           </pre>
