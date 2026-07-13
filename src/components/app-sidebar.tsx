@@ -36,7 +36,7 @@ const toolItems = [
   { to: "/get-app", label: "Get APK", icon: Download },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ variant = "desktop", onNavigate }: { variant?: "desktop" | "mobile"; onNavigate?: () => void } = {}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { session, user } = useAuth();
   const displayName =
@@ -47,8 +47,13 @@ export function AppSidebar() {
   const avatarUrl = (user?.user_metadata as { avatar_url?: string } | undefined)?.avatar_url;
   const initial = (displayName || "U").charAt(0).toUpperCase();
 
+  const asideClass = variant === "mobile"
+    ? "flex h-full w-full flex-col bg-sidebar overflow-y-auto"
+    : "hidden md:flex w-64 flex-col bg-sidebar border-r border-sidebar-border overflow-y-auto";
   return (
-    <aside className="hidden md:flex w-64 flex-col bg-sidebar border-r border-sidebar-border overflow-y-auto">
+    <aside className={asideClass} onClick={(e) => {
+      if (onNavigate && (e.target as HTMLElement).closest("a")) onNavigate();
+    }}>
       <div className="flex items-center gap-2 px-6 py-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
           <Music2 className="h-5 w-5 text-primary-foreground" />
