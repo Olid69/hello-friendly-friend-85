@@ -23,12 +23,50 @@ const tools = [
 ] as const;
 
 function SettingsPage() {
+  const { dataSaver, toggle } = useDataSaver();
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 md:px-8">
       <div className="flex items-center gap-3">
         <SettingsIcon className="h-6 w-6 text-primary" />
         <h1 className="text-2xl md:text-3xl font-bold">Settings</h1>
       </div>
+
+      <section className="mt-6 flex items-center justify-between gap-4 rounded-lg bg-card p-5">
+        <div className="flex items-start gap-3">
+          <Zap className="mt-0.5 h-5 w-5 text-primary" />
+          <div>
+            <h2 className="text-base font-semibold">Data Saver</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Lower-quality audio, no next-track prefetch, lazy artwork. Best on mobile data.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={toggle}
+          role="switch"
+          aria-checked={dataSaver}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${dataSaver ? "bg-primary" : "bg-muted"}`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${dataSaver ? "translate-x-5" : "translate-x-0.5"}`}
+          />
+        </button>
+      </section>
+
+      <Link
+        to="/get-app"
+        className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-primary/40 bg-primary/10 p-5 hover:bg-primary/15 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <Download className="h-5 w-5 text-primary" />
+          <div>
+            <p className="font-semibold">Install as Android app</p>
+            <p className="text-xs text-muted-foreground">Download the APK and install on your phone.</p>
+          </div>
+        </div>
+        <span className="text-sm font-medium text-primary">Get APK →</span>
+      </Link>
+
 
       <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {tools.map((t) => {
