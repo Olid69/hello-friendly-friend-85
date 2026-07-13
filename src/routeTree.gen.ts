@@ -15,6 +15,7 @@ import { Route as RecentRouteImport } from './routes/recent'
 import { Route as QueueRouteImport } from './routes/queue'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PlaylistsRouteImport } from './routes/playlists'
+import { Route as PlayerRouteImport } from './routes/player'
 import { Route as LyricsRouteImport } from './routes/lyrics'
 import { Route as LikedRouteImport } from './routes/liked'
 import { Route as LibraryRouteImport } from './routes/library'
@@ -55,6 +56,11 @@ const ProfileRoute = ProfileRouteImport.update({
 const PlaylistsRoute = PlaylistsRouteImport.update({
   id: '/playlists',
   path: '/playlists',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlayerRoute = PlayerRouteImport.update({
+  id: '/player',
+  path: '/player',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LyricsRoute = LyricsRouteImport.update({
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
   '/lyrics': typeof LyricsRoute
+  '/player': typeof PlayerRoute
   '/playlists': typeof PlaylistsRouteWithChildren
   '/profile': typeof ProfileRoute
   '/queue': typeof QueueRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
   '/lyrics': typeof LyricsRoute
+  '/player': typeof PlayerRoute
   '/playlists': typeof PlaylistsRouteWithChildren
   '/profile': typeof ProfileRoute
   '/queue': typeof QueueRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
   '/lyrics': typeof LyricsRoute
+  '/player': typeof PlayerRoute
   '/playlists': typeof PlaylistsRouteWithChildren
   '/profile': typeof ProfileRoute
   '/queue': typeof QueueRoute
@@ -182,6 +191,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/liked'
     | '/lyrics'
+    | '/player'
     | '/playlists'
     | '/profile'
     | '/queue'
@@ -201,6 +211,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/liked'
     | '/lyrics'
+    | '/player'
     | '/playlists'
     | '/profile'
     | '/queue'
@@ -220,6 +231,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/liked'
     | '/lyrics'
+    | '/player'
     | '/playlists'
     | '/profile'
     | '/queue'
@@ -240,6 +252,7 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRoute
   LikedRoute: typeof LikedRoute
   LyricsRoute: typeof LyricsRoute
+  PlayerRoute: typeof PlayerRoute
   PlaylistsRoute: typeof PlaylistsRouteWithChildren
   ProfileRoute: typeof ProfileRoute
   QueueRoute: typeof QueueRoute
@@ -292,6 +305,13 @@ declare module '@tanstack/react-router' {
       path: '/playlists'
       fullPath: '/playlists'
       preLoaderRoute: typeof PlaylistsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/player': {
+      id: '/player'
+      path: '/player'
+      fullPath: '/player'
+      preLoaderRoute: typeof PlayerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lyrics': {
@@ -395,6 +415,7 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRoute,
   LikedRoute: LikedRoute,
   LyricsRoute: LyricsRoute,
+  PlayerRoute: PlayerRoute,
   PlaylistsRoute: PlaylistsRouteWithChildren,
   ProfileRoute: ProfileRoute,
   QueueRoute: QueueRoute,
