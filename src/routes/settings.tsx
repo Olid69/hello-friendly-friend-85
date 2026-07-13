@@ -109,8 +109,8 @@ function SettingsPage() {
         </p>
         <pre className="mt-3 overflow-x-auto rounded bg-background p-3 text-xs font-mono">
 {`bun run build
-bunx cap add android
-bunx cap sync android
+bun run cap add android --no-sync
+bun run cap sync android
 cd android && ./gradlew assembleDebug
 # APK: android/app/build/outputs/apk/debug/app-debug.apk`}
         </pre>
