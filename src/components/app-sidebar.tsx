@@ -36,7 +36,7 @@ const toolItems = [
   { to: "/get-app", label: "Get APK", icon: Download },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ variant = "desktop", onNavigate }: { variant?: "desktop" | "mobile"; onNavigate?: () => void } = {}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { session, user } = useAuth();
   const displayName =
