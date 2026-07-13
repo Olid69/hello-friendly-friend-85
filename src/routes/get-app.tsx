@@ -213,23 +213,40 @@ function GetAppPage() {
         </ul>
       </section>
 
-      {/* Build instructions for future refreshes */}
+      {/* Auto-build via GitHub Actions */}
       <section className="mt-6 rounded-2xl bg-card p-5 md:p-6">
-        <h2 className="text-lg font-semibold">Build a fresh APK</h2>
+        <h2 className="text-lg font-semibold">Auto-build via GitHub Actions</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Run these on your machine, then upload the resulting file as{" "}
-          <code className="rounded bg-background px-1">public/sonora.apk</code>.
+          এই project-এ <code className="rounded bg-background px-1">.github/workflows/build-apk.yml</code>{" "}
+          add করা আছে। GitHub-এ push হলে workflow নিজে থেকে APK build করে{" "}
+          <span className="font-medium text-foreground">Releases → latest</span>-এ upload করবে।
         </p>
-        <pre className="mt-3 overflow-x-auto rounded-lg bg-background p-4 text-xs font-mono">
+        <ol className="mt-3 space-y-2 text-sm text-muted-foreground">
+          <Step n={1}>Lovable → <span className="font-medium text-foreground">+ menu → GitHub → Connect</span> করে repo বানাও।</Step>
+          <Step n={2}>Repo-র <span className="font-medium text-foreground">Actions</span> tab-এ workflow enable করো (প্রথমবার approval লাগতে পারে)।</Step>
+          <Step n={3}>Build শেষ হলে repo-র <span className="font-medium text-foreground">Releases</span>-এ <code className="rounded bg-background px-1">sonora.apk</code> পাবে।</Step>
+          <Step n={4}>
+            Lovable env-এ <code className="rounded bg-background px-1">VITE_APK_URL</code>{" "}
+            set করো — যেমন{" "}
+            <code className="rounded bg-background px-1">
+              https://github.com/&lt;user&gt;/&lt;repo&gt;/releases/latest/download/sonora.apk
+            </code>
+            । এই page-এর Download button তখনই সরাসরি GitHub Release থেকে APK নামাবে।
+          </Step>
+        </ol>
+        <details className="mt-4">
+          <summary className="cursor-pointer text-sm font-medium">Local build (manual, optional)</summary>
+          <pre className="mt-3 overflow-x-auto rounded-lg bg-background p-4 text-xs font-mono">
 {`bun install
 bun run build
 bunx cap add android            # first time only
 bunx cap sync android
 cd android && ./gradlew assembleDebug
-# APK output:
-# android/app/build/outputs/apk/debug/app-debug.apk`}
-        </pre>
+# APK: android/app/build/outputs/apk/debug/app-debug.apk`}
+          </pre>
+        </details>
       </section>
+
 
       <p className="mt-6 text-center text-[11px] text-muted-foreground">
         Sonora is a personal project. Not affiliated with YouTube, Jamendo,
