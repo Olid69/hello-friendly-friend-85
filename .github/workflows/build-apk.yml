@@ -83,6 +83,14 @@ jobs:
             bun run cap add android
           fi
 
+      - name: Apply Android native overrides (popups + background audio)
+        run: |
+          MAIN_DIR="android/app/src/main/java/app/sonora/personal"
+          mkdir -p "$MAIN_DIR"
+          cp android-overrides/MainActivity.java "$MAIN_DIR/MainActivity.java"
+          echo "MainActivity.java installed:"
+          head -5 "$MAIN_DIR/MainActivity.java"
+
       - name: Sync Capacitor
         run: bun run cap sync android
 
