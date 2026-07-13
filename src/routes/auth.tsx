@@ -172,6 +172,12 @@ function AuthPage() {
             Continue with Google
           </button>
 
+          {isNative && (
+            <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-200">
+              📱 APK-তে Google sign-in সরাসরি কাজ করে না (WebView limitation)। উপরের email/password use করো — নতুন account বানাও, তারপর phone আর browser দুই জায়গায় same email দিয়ে login করলে library sync হবে।
+            </p>
+          )}
+
           <button
             onClick={() => navigate({ to: "/" })}
             className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground"
