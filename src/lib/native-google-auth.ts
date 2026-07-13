@@ -85,6 +85,11 @@ export async function signInWithGoogleInNativeWebView(): Promise<NativeGoogleRes
       resolve(result);
     };
 
+    const finishFromExistingSession = async (fallbackError: Error) => {
+      const { data } = await supabase.auth.getSession();
+      finish(data.session ? { error: null } : { error: fallbackError });
+    };
+
     const finishWithTokens = async (accessToken: string, refreshToken: string) => {
       const { error } = await supabase.auth.setSession({
         access_token: accessToken,
@@ -119,7 +124,7 @@ export async function signInWithGoogleInNativeWebView(): Promise<NativeGoogleRes
 
     pollId = window.setInterval(() => {
       if (!popup || popup.closed) {
-        finish({ error: new Error("Google sign-in window was closed before it finished.") });
+        void finishFromExistingSession(new Error("Google sign-in window was closed before it finished."));
         return;
       }
 
