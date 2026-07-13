@@ -327,6 +327,79 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (videoRef.current) attachEqualizer(videoRef.current);
   }, []);
 
+  // MediaSession: lock-screen / notification controls + keeps audio alive in background.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    const ms = navigator.mediaSession;
+    if (!current) {
+      ms.metadata = null;
+      try { ms.playbackState = "none"; } catch {}
+      return;
+    }
+    ms.metadata = new window.MediaMetadata({
+      title: current.title,
+      artist: current.artist,
+      album: "Sonora",
+      artwork: current.artwork
+        ? [96, 192, 256, 384, 512].map((s) => ({
+            src: current.artwork,
+            sizes: `${s}x${s}`,
+            type: "image/jpeg",
+          }))
+        : [],
+    });
+    try { ms.playbackState = isPlaying ? "playing" : "paused"; } catch {}
+  }, [current, isPlaying]);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    const ms = navigator.mediaSession;
+    const setAction = (action: MediaSessionAction, handler: any) => {
+      try { ms.setActionHandler(action, handler); } catch {}
+    };
+
+    setAction("play", () => {
+      if (!isPlaying) togglePlay();
+    });
+    setAction("pause", () => {
+      if (isPlaying) togglePlay();
+    });
+    setAction("previoustrack", () => prev());
+    setAction("nexttrack", () => next());
+    setAction("seekto", (details: any) => {
+      if (typeof details?.seekTime === "number") seek(details.seekTime);
+    });
+    setAction("seekforward", (details: any) => {
+      const step = details?.seekOffset ?? 10;
+      seek(Math.min((duration || 0), progress + step));
+    });
+    setAction("seekbackward", (details: any) => {
+      const step = details?.seekOffset ?? 10;
+      seek(Math.max(0, progress - step));
+    });
+    return () => {
+      ["play","pause","previoustrack","nexttrack","seekto","seekforward","seekbackward"].forEach((a) => {
+        try { ms.setActionHandler(a as MediaSessionAction, null); } catch {}
+      });
+    };
+  }, [isPlaying, progress, duration]);
+
+  // Update position state so scrubber works on lock screen.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    const ms: any = navigator.mediaSession;
+    if (!ms.setPositionState || !current) return;
+    try {
+      ms.setPositionState({
+        duration: Math.max(0, duration || current.duration || 0),
+        position: Math.max(0, Math.min(progress, duration || current.duration || 0)),
+        playbackRate: 1,
+      });
+    } catch {}
+  }, [progress, duration, current]);
+
+
+
 
 
   const playTrack = (track: UnifiedTrack, newQueue?: UnifiedTrack[]) => {
