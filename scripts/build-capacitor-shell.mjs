@@ -3,7 +3,16 @@
 // index.html. Capacitor's WebView needs one to boot, so we synthesize a
 // minimal shell that loads the hashed client entry chunk and its CSS.
 
-import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 // Try common output locations. Different TanStack Start / Nitro presets
@@ -13,8 +22,11 @@ const candidateClientDirs = [
   "dist/public",
   "dist/static",
   ".output/public",
+  ".output/server/public",
   "dist",
 ];
+
+const capacitorWebDir = "dist/client";
 
 function findClientDir() {
   for (const dir of candidateClientDirs) {
@@ -48,8 +60,16 @@ if (!clientDir) {
   process.exit(1);
 }
 
-const assetsDir = join(clientDir, "assets");
-console.log(`[capacitor-shell] Using client dir: ${clientDir}`);
+if (clientDir !== capacitorWebDir) {
+  console.log(`[capacitor-shell] Normalizing ${clientDir} -> ${capacitorWebDir}`);
+  rmSync(capacitorWebDir, { recursive: true, force: true });
+  mkdirSync(capacitorWebDir, { recursive: true });
+  cpSync(clientDir, capacitorWebDir, { recursive: true });
+}
+
+const finalClientDir = capacitorWebDir;
+const assetsDir = join(finalClientDir, "assets");
+console.log(`[capacitor-shell] Using client dir: ${finalClientDir}`);
 
 const files = readdirSync(assetsDir);
 
@@ -92,5 +112,5 @@ ${cssTags}
 </html>
 `;
 
-writeFileSync(join(clientDir, "index.html"), html);
-console.log(`[capacitor-shell] Wrote ${clientDir}/index.html (entry: ${entryJs}, css: ${cssFiles.length})`);
+writeFileSync(join(finalClientDir, "index.html"), html);
+console.log(`[capacitor-shell] Wrote ${finalClientDir}/index.html (entry: ${entryJs}, css: ${cssFiles.length})`);
