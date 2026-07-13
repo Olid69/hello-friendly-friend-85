@@ -4,7 +4,6 @@ import { AppSidebar } from "./app-sidebar";
 import { MobileNav } from "./mobile-nav";
 import { PlayerBar } from "./player-bar";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
