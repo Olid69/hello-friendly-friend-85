@@ -3,16 +3,53 @@
 // index.html. Capacitor's WebView needs one to boot, so we synthesize a
 // minimal shell that loads the hashed client entry chunk and its CSS.
 
-import { readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const clientDir = "dist/client";
-const assetsDir = join(clientDir, "assets");
+// Try common output locations. Different TanStack Start / Nitro presets
+// (cloudflare vs node vs static) emit the browser bundle in different dirs.
+const candidateClientDirs = [
+  "dist/client",
+  "dist/public",
+  "dist/static",
+  ".output/public",
+  "dist",
+];
 
-if (!existsSync(assetsDir)) {
-  console.error(`[capacitor-shell] Missing ${assetsDir}. Run 'bun run build' first.`);
+function findClientDir() {
+  for (const dir of candidateClientDirs) {
+    const assets = join(dir, "assets");
+    if (existsSync(assets) && statSync(assets).isDirectory()) {
+      const files = readdirSync(assets);
+      if (files.some((f) => /^index-[A-Za-z0-9_-]+\.js$/.test(f))) {
+        return dir;
+      }
+    }
+  }
+  return null;
+}
+
+const clientDir = findClientDir();
+
+if (!clientDir) {
+  console.error("[capacitor-shell] Could not find built client assets in any known location.");
+  console.error("[capacitor-shell] Searched:", candidateClientDirs.join(", "));
+  console.error("[capacitor-shell] dist/ tree:");
+  function walk(dir, depth = 0) {
+    if (depth > 3 || !existsSync(dir)) return;
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      const isDir = statSync(full).isDirectory();
+      console.error("  ".repeat(depth) + (isDir ? "[d] " : "    ") + entry);
+      if (isDir) walk(full, depth + 1);
+    }
+  }
+  walk("dist");
   process.exit(1);
 }
+
+const assetsDir = join(clientDir, "assets");
+console.log(`[capacitor-shell] Using client dir: ${clientDir}`);
 
 const files = readdirSync(assetsDir);
 
