@@ -33,6 +33,7 @@ const libraryItems = [
 const toolItems = [
   { to: "/lyrics", label: "Lyrics", icon: Mic2 },
   { to: "/equalizer", label: "Equalizer", icon: Sliders },
+  { to: "/get-app", label: "Get APK", icon: Download },
 ];
 
 export function AppSidebar() {
