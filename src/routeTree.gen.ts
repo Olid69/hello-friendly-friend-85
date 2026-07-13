@@ -18,6 +18,7 @@ import { Route as PlaylistsRouteImport } from './routes/playlists'
 import { Route as LyricsRouteImport } from './routes/lyrics'
 import { Route as LikedRouteImport } from './routes/liked'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as GetAppRouteImport } from './routes/get-app'
 import { Route as EqualizerRouteImport } from './routes/equalizer'
 import { Route as DownloadsRouteImport } from './routes/downloads'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -71,6 +72,11 @@ const LibraryRoute = LibraryRouteImport.update({
   path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GetAppRoute = GetAppRouteImport.update({
+  id: '/get-app',
+  path: '/get-app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EqualizerRoute = EqualizerRouteImport.update({
   id: '/equalizer',
   path: '/equalizer',
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/downloads': typeof DownloadsRoute
   '/equalizer': typeof EqualizerRoute
+  '/get-app': typeof GetAppRoute
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
   '/lyrics': typeof LyricsRoute
@@ -130,6 +137,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/downloads': typeof DownloadsRoute
   '/equalizer': typeof EqualizerRoute
+  '/get-app': typeof GetAppRoute
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
   '/lyrics': typeof LyricsRoute
@@ -149,6 +157,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/downloads': typeof DownloadsRoute
   '/equalizer': typeof EqualizerRoute
+  '/get-app': typeof GetAppRoute
   '/library': typeof LibraryRoute
   '/liked': typeof LikedRoute
   '/lyrics': typeof LyricsRoute
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/downloads'
     | '/equalizer'
+    | '/get-app'
     | '/library'
     | '/liked'
     | '/lyrics'
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/downloads'
     | '/equalizer'
+    | '/get-app'
     | '/library'
     | '/liked'
     | '/lyrics'
@@ -205,6 +216,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/downloads'
     | '/equalizer'
+    | '/get-app'
     | '/library'
     | '/liked'
     | '/lyrics'
@@ -224,6 +236,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   DownloadsRoute: typeof DownloadsRoute
   EqualizerRoute: typeof EqualizerRoute
+  GetAppRoute: typeof GetAppRoute
   LibraryRoute: typeof LibraryRoute
   LikedRoute: typeof LikedRoute
   LyricsRoute: typeof LyricsRoute
@@ -302,6 +315,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/get-app': {
+      id: '/get-app'
+      path: '/get-app'
+      fullPath: '/get-app'
+      preLoaderRoute: typeof GetAppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/equalizer': {
       id: '/equalizer'
       path: '/equalizer'
@@ -371,6 +391,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   DownloadsRoute: DownloadsRoute,
   EqualizerRoute: EqualizerRoute,
+  GetAppRoute: GetAppRoute,
   LibraryRoute: LibraryRoute,
   LikedRoute: LikedRoute,
   LyricsRoute: LyricsRoute,
