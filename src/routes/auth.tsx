@@ -46,7 +46,19 @@ function AuthPage() {
     navigate({ to: "/" });
   };
 
+  const isNative =
+    typeof window !== "undefined" &&
+    ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ??
+      /Android.*wv|; wv\)/i.test(navigator.userAgent));
+
   const googleSignIn = async () => {
+    if (isNative) {
+      toast.error(
+        "Google sign-in APK-তে সরাসরি কাজ করে না। Email দিয়ে sign up করো, অথবা browser-এ sonora-stream.lovable.app খুলে Google দিয়ে sign in করে সেই email/password use করো।",
+        { duration: 8000 },
+      );
+      return;
+    }
     setLoading(true);
     const res = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: window.location.origin,
