@@ -16,6 +16,7 @@ import { PlayerProvider } from "../lib/player-context";
 import { Toaster } from "../components/ui/sonner";
 import { AuthProvider } from "../lib/auth-context";
 import { supabase } from "../integrations/supabase/client";
+import { cleanOAuthParamsFromCurrentUrl, completeOAuthSessionFromUrl, hasOAuthParams } from "../lib/oauth-session";
 
 function NotFoundComponent() {
   return (
@@ -147,6 +148,22 @@ function RootComponent() {
       }
     });
     return () => sub.subscription.unsubscribe();
+  }, [queryClient, router]);
+
+  useEffect(() => {
+    if (!hasOAuthParams()) return;
+    let cancelled = false;
+    completeOAuthSessionFromUrl().then((result) => {
+      if (cancelled) return;
+      if (result.completed) {
+        cleanOAuthParamsFromCurrentUrl();
+        router.invalidate();
+        queryClient.invalidateQueries();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [queryClient, router]);
 
   return (

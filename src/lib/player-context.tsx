@@ -57,7 +57,23 @@ declare global {
   interface Window {
     YT?: any;
     onYouTubeIframeAPIReady?: () => void;
+    SonoraNativeAudio?: {
+      start?: (title: string, artist: string) => void;
+      stop?: () => void;
+    };
   }
+}
+
+function isNativeAndroidPlayback() {
+  if (typeof window === "undefined") return false;
+  const capacitor = (window as any).Capacitor;
+  if (capacitor?.isNativePlatform?.()) return true;
+  return /Android/i.test(navigator.userAgent) && /; wv\)/i.test(navigator.userAgent);
+}
+
+function getYouTubeAudioProxyUrl(track: UnifiedTrack) {
+  const videoId = track.id.replace(/^youtube:/, "");
+  return `/api/public/youtube-audio?videoId=${encodeURIComponent(videoId)}`;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -275,6 +291,29 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
       if (current.source === "youtube") {
         const videoId = current.id.replace(/^youtube:/, "");
+        if (isNativeAndroidPlayback()) {
+          youtubePlayerRef.current?.stopVideo?.();
+          const media = audioRef.current;
+          if (!media) return;
+          setEngine("audio");
+          media.src = getYouTubeAudioProxyUrl(current);
+          try {
+            await media.play();
+            if (!cancelled) {
+              setIsPlaying(true);
+              setError(null);
+            }
+          } catch (err) {
+            console.error("YouTube audio proxy playback failed", err);
+            if (!cancelled) {
+              setIsPlaying(false);
+              setError("YouTube playback failed. Try another source or downloaded track.");
+            }
+          } finally {
+            if (!cancelled) setIsLoading(false);
+          }
+          return;
+        }
         pendingYoutubeVideoIdRef.current = videoId;
         setEngine("youtube");
         ensureYoutubePlayer();
@@ -397,6 +436,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       });
     } catch {}
   }, [progress, duration, current]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.SonoraNativeAudio) return;
+    try {
+      if (current && isPlaying) {
+        window.SonoraNativeAudio.start?.(current.title, current.artist);
+      } else {
+        window.SonoraNativeAudio.stop?.();
+      }
+    } catch {}
+  }, [current, isPlaying]);
 
 
 

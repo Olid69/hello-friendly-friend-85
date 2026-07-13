@@ -88,11 +88,42 @@ jobs:
           MAIN_DIR="android/app/src/main/java/app/sonora/personal"
           mkdir -p "$MAIN_DIR"
           cp android-overrides/MainActivity.java "$MAIN_DIR/MainActivity.java"
+          cp android-overrides/SonoraAudioService.java "$MAIN_DIR/SonoraAudioService.java"
           echo "MainActivity.java installed:"
           head -5 "$MAIN_DIR/MainActivity.java"
 
       - name: Sync Capacitor
         run: bun run cap sync android
+
+      - name: Patch Android manifest for background playback
+        run: |
+          MAIN_DIR="android/app/src/main/java/app/sonora/personal"
+          mkdir -p "$MAIN_DIR"
+          cp android-overrides/MainActivity.java "$MAIN_DIR/MainActivity.java"
+          cp android-overrides/SonoraAudioService.java "$MAIN_DIR/SonoraAudioService.java"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
+
+          permissions = [
+              '<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />',
+              '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />',
+              '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />',
+              '<uses-permission android:name="android.permission.WAKE_LOCK" />',
+          ]
+          for permission in permissions:
+              if permission not in text:
+                  text = text.replace("<application", f"{permission}\n\n    <application", 1)
+
+          service = '''\n        <service\n            android:name=".SonoraAudioService"\n            android:exported="false"\n            android:foregroundServiceType="mediaPlayback" />\n'''
+          if 'android:name=".SonoraAudioService"' not in text:
+              text = text.replace("    </application>", service + "    </application>", 1)
+
+          manifest.write_text(text)
+          PY
+          grep -n "SonoraAudioService\|FOREGROUND_SERVICE" android/app/src/main/AndroidManifest.xml
 
       - name: Grant gradlew permission
         run: chmod +x android/gradlew

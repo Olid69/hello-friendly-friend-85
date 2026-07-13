@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { lovable } from "@/integrations/lovable/index";
 import { cn } from "@/lib/utils";
+import { isNativeAndroidWebView, signInWithGoogleInNativeWebView } from "@/lib/native-google-auth";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -48,17 +49,37 @@ function AuthPage() {
 
   const googleSignIn = async () => {
     setLoading(true);
-    const res = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (res.error) {
+    try {
+      if (isNativeAndroidWebView()) {
+        const nativeResult = await signInWithGoogleInNativeWebView();
+        setLoading(false);
+        if (nativeResult.error) {
+          toast.error(nativeResult.error.message);
+          return;
+        }
+        toast.success("Signed in with Google");
+        router.invalidate();
+        navigate({ to: "/" });
+        return;
+      }
+
+      const res = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (res.error) {
+        setLoading(false);
+        toast.error(res.error.message);
+        return;
+      }
+      if (res.redirected) return;
       setLoading(false);
-      toast.error(res.error.message);
-      return;
+      toast.success("Signed in with Google");
+      router.invalidate();
+      navigate({ to: "/" });
+    } catch (error) {
+      setLoading(false);
+      toast.error(error instanceof Error ? error.message : "Google sign-in failed.");
     }
-    if (res.redirected) return;
-    router.invalidate();
-    navigate({ to: "/" });
   };
 
   return (
