@@ -62,7 +62,6 @@ export async function signInWithGoogleInNativeWebView(): Promise<NativeGoogleRes
   const params = new URLSearchParams({
     provider: "google",
     redirect_uri: window.location.origin,
-    response_mode: "web_message",
     state,
   });
   const oauthUrl = `${window.location.origin}/~oauth/initiate?${params.toString()}`;

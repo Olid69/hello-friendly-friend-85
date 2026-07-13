@@ -1,7 +1,10 @@
 package app.sonora.personal;
 
 import android.app.Dialog;
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
 import android.view.ViewGroup;
@@ -35,6 +38,11 @@ public class MainActivity extends BridgeActivity {
     CookieManager.getInstance().setAcceptCookie(true);
     CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
     webView.addJavascriptInterface(new SonoraNativeAudioBridge(), "SonoraNativeAudio");
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+      checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 7002);
+    }
 
     webView.setWebChromeClient(new WebChromeClient() {
       @Override
@@ -107,7 +115,11 @@ public class MainActivity extends BridgeActivity {
       intent.setAction(SonoraAudioService.ACTION_START);
       intent.putExtra(SonoraAudioService.EXTRA_TITLE, title == null ? "Sonora" : title);
       intent.putExtra(SonoraAudioService.EXTRA_ARTIST, artist == null ? "Playing" : artist);
-      startForegroundService(intent);
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForegroundService(intent);
+      } else {
+        startService(intent);
+      }
     }
 
     @JavascriptInterface

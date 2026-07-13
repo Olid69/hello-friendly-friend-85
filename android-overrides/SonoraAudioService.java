@@ -8,6 +8,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 public class SonoraAudioService extends Service {
   public static final String ACTION_START = "app.sonora.personal.audio.START";
@@ -17,6 +18,7 @@ public class SonoraAudioService extends Service {
 
   private static final String CHANNEL_ID = "sonora_playback";
   private static final int NOTIFICATION_ID = 7001;
+  private PowerManager.WakeLock wakeLock;
 
   @Override
   public void onCreate() {
@@ -34,8 +36,15 @@ public class SonoraAudioService extends Service {
 
     String title = intent != null ? intent.getStringExtra(EXTRA_TITLE) : null;
     String artist = intent != null ? intent.getStringExtra(EXTRA_ARTIST) : null;
+    acquireWakeLock();
     startForeground(NOTIFICATION_ID, buildNotification(title, artist));
     return START_STICKY;
+  }
+
+  @Override
+  public void onDestroy() {
+    releaseWakeLock();
+    super.onDestroy();
   }
 
   @Override
@@ -77,5 +86,20 @@ public class SonoraAudioService extends Service {
       .setOngoing(true)
       .setShowWhen(false)
       .build();
+  }
+
+  private void acquireWakeLock() {
+    if (wakeLock != null && wakeLock.isHeld()) return;
+    PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+    if (powerManager == null) return;
+    wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Sonora:PlaybackWakeLock");
+    wakeLock.setReferenceCounted(false);
+    wakeLock.acquire(12 * 60 * 60 * 1000L);
+  }
+
+  private void releaseWakeLock() {
+    if (wakeLock == null || !wakeLock.isHeld()) return;
+    wakeLock.release();
+    wakeLock = null;
   }
 }
