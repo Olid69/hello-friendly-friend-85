@@ -16,6 +16,8 @@ import {
 const APK_PATH =
   (import.meta.env.VITE_APK_URL as string | undefined) ?? "/sonora.apk";
 
+const isExternalApkUrl = /^https?:\/\//i.test(APK_PATH);
+
 export const Route = createFileRoute("/get-app")({
   head: () => ({
     meta: [
@@ -45,6 +47,11 @@ function GetAppPage() {
   const [size, setSize] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isExternalApkUrl) {
+      setStatus("ready");
+      return;
+    }
+
     let cancelled = false;
     fetch(APK_PATH, { method: "HEAD" })
       .then((res) => {
