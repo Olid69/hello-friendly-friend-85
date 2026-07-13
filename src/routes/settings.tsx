@@ -7,7 +7,9 @@ import {
   Download,
   Mic2,
   Smartphone,
+  Zap,
 } from "lucide-react";
+import { useDataSaver } from "@/lib/data-saver";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Sonora" }] }),
