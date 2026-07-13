@@ -354,9 +354,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
     const ms = navigator.mediaSession;
-    const setAction = (action: MediaSessionAction, handler: (() => void) | null) => {
-      try { ms.setActionHandler(action, handler as any); } catch {}
+    const setAction = (action: MediaSessionAction, handler: any) => {
+      try { ms.setActionHandler(action, handler); } catch {}
     };
+
     setAction("play", () => {
       if (!isPlaying) togglePlay();
     });
