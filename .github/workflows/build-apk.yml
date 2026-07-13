@@ -34,14 +34,17 @@ jobs:
       - name: Build web bundle
         run: bun run build
 
+      - name: Install Capacitor CLI + Android runtime
+        run: bun add -d @capacitor/cli && bun add @capacitor/core @capacitor/android
+
       - name: Add Android platform (if missing)
         run: |
           if [ ! -d "android" ]; then
-            bunx cap add android
+            bunx @capacitor/cli add android
           fi
 
       - name: Sync Capacitor
-        run: bunx cap sync android
+        run: bunx @capacitor/cli sync android
 
       - name: Grant gradlew permission
         run: chmod +x android/gradlew
