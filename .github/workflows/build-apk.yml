@@ -50,6 +50,9 @@ jobs:
       - name: Build web bundle
         run: bun run build
 
+      - name: Generate Capacitor SPA shell (dist/client/index.html)
+        run: node scripts/build-capacitor-shell.mjs
+
       - name: Verify web bundle for APK
         run: |
           if [ ! -f "dist/client/index.html" ]; then
