@@ -196,7 +196,7 @@ function PlayerActions() {
   if (!current) return null;
   const liked = isLiked(current.id);
   return (
-    <div className="hidden md:flex items-center gap-2">
+    <div className="hidden md:flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
       <button
         onClick={() => toggleLike(current)}
         className={cn(
