@@ -56,12 +56,23 @@ export function PlayerBar() {
   } = usePlayer();
 
   const RepeatIcon = repeat === "one" ? Repeat1 : Repeat;
+  const navigate = useNavigate();
+  const openFullPlayer = () => {
+    if (current) navigate({ to: "/player" });
+  };
 
   return (
     <footer className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 z-30 border-t border-border bg-player text-player-foreground">
       <div className="flex items-center gap-3 px-3 py-2 md:px-4 md:py-3">
         {/* Track info */}
-        <div className="flex min-w-0 flex-1 items-center gap-3 md:w-72 md:flex-none">
+        <div
+          onClick={openFullPlayer}
+          role={current ? "button" : undefined}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-3 md:w-72 md:flex-none",
+            current && "cursor-pointer",
+          )}
+        >
           <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-card">
             {current?.artwork ? (
               <img
