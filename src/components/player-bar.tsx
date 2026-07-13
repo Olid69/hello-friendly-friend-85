@@ -17,6 +17,7 @@ import { usePlayer } from "@/lib/player-context";
 import { useLiked } from "@/lib/library-store";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "@tanstack/react-router";
 
 
 function fmt(sec: number) {
