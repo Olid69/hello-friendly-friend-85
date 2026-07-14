@@ -9,6 +9,7 @@ import {
   searchPiped,
   searchPipedVideos,
   trendingAudius,
+  trendingPiped,
 } from "./music-sources.server";
 
 export const unifiedSearch = createServerFn({ method: "GET" })
