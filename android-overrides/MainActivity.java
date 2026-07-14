@@ -162,11 +162,15 @@ public class MainActivity extends BridgeActivity {
 
 
   @Override
+  public void onDestroy() {
+    if (instance == this) instance = null;
+    super.onDestroy();
+  }
+
+  @Override
   public void onPause() {
     super.onPause();
     // Keep HTML5 audio (MediaSession) running when the app goes to background.
-    // BridgeActivity/Chromium will pause the WebView on backgrounding, which stops audio.
-    // Immediately resume it so MediaSession keeps the stream alive under the OS media notification.
     if (getBridge() != null && getBridge().getWebView() != null) {
       getBridge().getWebView().onResume();
     }
@@ -180,3 +184,4 @@ public class MainActivity extends BridgeActivity {
     }
   }
 }
+
