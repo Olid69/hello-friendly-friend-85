@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { lovable } from "@/integrations/lovable/index";
 import { cn } from "@/lib/utils";
-import { isNativeAndroidWebView, signInWithGoogleInNativeWebView } from "@/lib/native-google-auth";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
