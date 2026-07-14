@@ -153,8 +153,10 @@ public class SonoraAudioService extends Service {
     }
 
     if (intent != null && ACTION_CONTROL.equals(intent.getAction())) {
-      handlePlaybackControl(intent.getStringExtra(EXTRA_CONTROL), intent.getLongExtra(EXTRA_POSITION_MS, 0));
-      return START_STICKY;
+      String control = intent.getStringExtra(EXTRA_CONTROL);
+      handlePlaybackControl(control, intent.getLongExtra(EXTRA_POSITION_MS, 0));
+      if (!"stop".equals(control)) promoteToForeground();
+      return START_REDELIVER_INTENT;
     }
 
     if (intent != null) {
@@ -190,28 +192,16 @@ public class SonoraAudioService extends Service {
 
     acquireWakeLock();
     updateMediaSession();
-    // Android 14+ (API 34) requires an explicit foregroundServiceType on
-    // startForeground() or the OS kills the service after a short while —
-    // this is why playback was stopping in the background.
-    try {
-      if (Build.VERSION.SDK_INT >= 34) {
-        startForeground(
-          NOTIFICATION_ID,
-          buildNotification(),
-          android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-        );
-      } else {
-        startForeground(NOTIFICATION_ID, buildNotification());
-      }
-    } catch (Exception e) {
-      startForeground(NOTIFICATION_ID, buildNotification());
-    }
-    return START_STICKY;
+    promoteToForeground();
+    return START_REDELIVER_INTENT;
   }
 
   @Override
   public void onDestroy() {
-    if (handler != null) handler.removeCallbacks(progressRunnable);
+    if (handler != null) {
+      handler.removeCallbacks(progressRunnable);
+      handler.removeCallbacks(retryRunnable);
+    }
     releaseNativePlayer();
     releaseWakeLock();
     releaseWifiLock();
@@ -298,7 +288,12 @@ public class SonoraAudioService extends Service {
       | PlaybackState.ACTION_SKIP_TO_PREVIOUS
       | PlaybackState.ACTION_SEEK_TO
       | PlaybackState.ACTION_STOP;
-    int state = lastIsPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED;
+    int state = PlaybackState.STATE_PAUSED;
+    if (exoPlayer != null && exoPlayer.getPlaybackState() == Player.STATE_BUFFERING) {
+      state = PlaybackState.STATE_BUFFERING;
+    } else if (lastIsPlaying) {
+      state = PlaybackState.STATE_PLAYING;
+    }
     PlaybackState.Builder ps = new PlaybackState.Builder()
       .setActions(actions)
       .setState(state, Math.max(0, lastPositionMs), 1f);
@@ -352,6 +347,24 @@ public class SonoraAudioService extends Service {
     }
 
     return builder.build();
+  }
+
+  private void promoteToForeground() {
+    // Android 14+ (API 34) requires an explicit foregroundServiceType on
+    // startForeground() or the OS kills the service after a short while.
+    try {
+      if (Build.VERSION.SDK_INT >= 34) {
+        startForeground(
+          NOTIFICATION_ID,
+          buildNotification(),
+          android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+        );
+      } else {
+        startForeground(NOTIFICATION_ID, buildNotification());
+      }
+    } catch (Exception e) {
+      try { startForeground(NOTIFICATION_ID, buildNotification()); } catch (Exception ignored) {}
+    }
   }
 
   private Notification.Action action(int icon, String label, String action) {
