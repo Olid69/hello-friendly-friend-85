@@ -98,11 +98,9 @@ function HomePage() {
       try {
         const raw = localStorage.getItem(YT_CACHE_KEY);
         if (!raw) return undefined;
-        const parsed = JSON.parse(raw) as { tracks: unknown; savedAt: number };
-        if (!parsed?.tracks) return undefined;
-        return { tracks: parsed.tracks as ReturnType<typeof Array>[] } as {
-          tracks: NonNullable<ReturnType<typeof youtubeTrending> extends Promise<infer T> ? T : never>["tracks"];
-        };
+        const parsed = JSON.parse(raw) as { tracks?: YoutubeTrendingResult["tracks"]; savedAt?: number };
+        if (!parsed?.tracks?.length) return undefined;
+        return { tracks: parsed.tracks } satisfies YoutubeTrendingResult;
       } catch {
         return undefined;
       }
