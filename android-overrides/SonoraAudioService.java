@@ -605,6 +605,9 @@ public class SonoraAudioService extends Service {
     syncPlayerPosition();
     lastIsPlaying = false;
     stopProgressUpdates();
+    releaseWakeLock();
+    releaseWifiLock();
+    abandonAudioFocus();
     updateMediaSession();
     refreshNotification();
     if (notifyJs) MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "pause");

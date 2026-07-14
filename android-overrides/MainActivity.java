@@ -207,7 +207,7 @@ public class MainActivity extends BridgeActivity {
     public void stop() {
       Intent intent = new Intent(MainActivity.this, SonoraAudioService.class);
       intent.setAction(SonoraAudioService.ACTION_STOP);
-      startPlaybackService(intent);
+      startService(intent);
     }
   }
 
