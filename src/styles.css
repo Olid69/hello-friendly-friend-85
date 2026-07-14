@@ -289,17 +289,18 @@
     background-color 200ms var(--ease-standard),
     transform 200ms var(--ease-standard),
     box-shadow 240ms var(--ease-emphasized);
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms var(--ease-standard);
+    z-index: 0;
+  }
 }
-@utility md-state::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-color: currentColor;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 180ms var(--ease-standard);
-  z-index: 0;
-}
+
 @utility md-interactive {
   position: relative;
   isolation: isolate;
