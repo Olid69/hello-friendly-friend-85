@@ -193,6 +193,21 @@ export async function searchPipedVideos(query: string, limit = 12): Promise<Unif
   return results;
 }
 
+export async function trendingPiped(limit = 12, region = "US"): Promise<UnifiedTrack[]> {
+  const json = await pipedFetch(`/trending?region=${region}`);
+  if (!Array.isArray(json)) return [];
+  const seen = new Set<string>();
+  const results: UnifiedTrack[] = [];
+  for (const item of json as any[]) {
+    const track = mapPipedStreamItem(item);
+    if (!track || seen.has(track.id)) continue;
+    seen.add(track.id);
+    results.push(track);
+    if (results.length >= limit) break;
+  }
+  return results;
+}
+
 const INVIDIOUS_INSTANCES = [
   "https://inv.nadeko.net",
   "https://invidious.nerdvpn.de",
