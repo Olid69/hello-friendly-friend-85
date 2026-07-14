@@ -70,7 +70,15 @@ function PlayerPage() {
               <img
                 src={current.artwork}
                 alt=""
-                className="h-full w-full object-cover"
+                className={cn(
+                  "h-full w-full object-cover transition-transform duration-700",
+                  isPlaying ? "scale-105" : "scale-100",
+                )}
+                style={
+                  isPlaying
+                    ? { animation: "sonora-spin 24s linear infinite" }
+                    : undefined
+                }
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-white/40">
@@ -79,6 +87,8 @@ function PlayerPage() {
             )}
           </div>
         </div>
+        <style>{`@keyframes sonora-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
+
 
         {/* Title / Artist */}
         <div className="mt-5 flex items-start justify-between gap-3 px-1">
