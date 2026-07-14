@@ -68,7 +68,7 @@ function PlayerPage() {
     >
       {/* Close */}
       <button
-        onClick={() => router.history.back()}
+        onClick={handleClose}
         aria-label="Close"
         className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur hover:bg-black/50"
       >
