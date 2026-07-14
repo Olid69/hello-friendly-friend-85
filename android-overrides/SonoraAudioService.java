@@ -42,7 +42,6 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.LoadControl;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
-import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy;
 
 /**
  * Foreground media playback service.
@@ -500,10 +499,12 @@ public class SonoraAudioService extends Service {
       .setPrioritizeTimeOverSizeThresholds(true)
       .build();
 
+    DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(dataSourceFactory)
+      .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(60000));
+
     ExoPlayer player = new ExoPlayer.Builder(this)
-      .setMediaSourceFactory(new DefaultMediaSourceFactory(dataSourceFactory))
+      .setMediaSourceFactory(mediaSourceFactory)
       .setLoadControl(loadControl)
-      .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(60000))
       .build();
 
     player.setAudioAttributes(new AudioAttributes.Builder()
