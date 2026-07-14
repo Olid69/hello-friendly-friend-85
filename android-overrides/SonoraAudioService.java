@@ -93,6 +93,17 @@ public class SonoraAudioService extends Service {
   private static final int MAX_RETRY_ATTEMPTS = 10;
   private static final long[] RETRY_DELAYS_MS = new long[] { 1000, 2000, 4000, 8000, 12000, 20000, 30000 };
 
+  private String lastStreamUrl;
+  private String lastTitle;
+  private String lastArtist;
+  private String lastArtworkUrl;
+  private Bitmap lastArtworkBitmap;
+  private boolean lastIsPlaying = true;
+  private boolean isPrepared = false;
+  private boolean playWhenPrepared = false;
+  private long lastPositionMs = 0;
+  private long lastDurationMs = 0;
+
   private final AudioManager.OnAudioFocusChangeListener audioFocusListener = focusChange -> {
     if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
       setPlayerVolume(1f);
@@ -106,16 +117,6 @@ public class SonoraAudioService extends Service {
     }
   };
 
-  private String lastStreamUrl;
-  private String lastTitle;
-  private String lastArtist;
-  private String lastArtworkUrl;
-  private Bitmap lastArtworkBitmap;
-  private boolean lastIsPlaying = true;
-  private boolean isPrepared = false;
-  private boolean playWhenPrepared = false;
-  private long lastPositionMs = 0;
-  private long lastDurationMs = 0;
 
   private final Runnable retryRunnable = new Runnable() {
     @Override public void run() {
