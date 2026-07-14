@@ -130,6 +130,25 @@ jobs:
       - name: Grant gradlew permission
         run: chmod +x android/gradlew
 
+      - name: Configure universal APK (both ABIs, no resource shrinking)
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/build.gradle")
+          text = p.read_text()
+          # Keep all ABIs (universal fat APK) — bigger install but works on every device.
+          if "abiFilters" not in text:
+              text = text.replace(
+                  "defaultConfig {",
+                  "defaultConfig {\n        ndk {\n            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'\n        }",
+                  1,
+              )
+          # Do not shrink resources — bundled fonts/assets must ship.
+          text = text.replace("shrinkResources true", "shrinkResources false")
+          p.write_text(text)
+          print(text[:600])
+          PY
+
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace
@@ -137,7 +156,10 @@ jobs:
       - name: Collect APK
         run: |
           mkdir -p artifact
-          APK_PATH="$(find android/app/build/outputs/apk -name '*.apk' | sort | head -n 1)"
+          APK_PATH="$(find android/app/build/outputs/apk -name 'app-*universal*.apk' -o -name 'app-debug.apk' | sort | head -n 1)"
+          if [ -z "$APK_PATH" ]; then
+            APK_PATH="$(find android/app/build/outputs/apk -name '*.apk' | sort | head -n 1)"
+          fi
           if [ -z "$APK_PATH" ]; then
             echo "::error::Gradle finished but no APK was found."
             find android/app/build/outputs -maxdepth 5 -type f || true
