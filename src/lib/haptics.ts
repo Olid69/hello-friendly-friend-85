@@ -16,9 +16,9 @@ async function loadCap() {
     // Only try native import when Capacitor is present.
     const w = typeof window !== "undefined" ? (window as any) : undefined;
     if (!w?.Capacitor?.isNativePlatform?.()) return;
-    const mod: any = await import(/* @vite-ignore */ "@capacitor/haptics").catch(
-      () => null,
-    );
+    const mod: any = await import(
+      /* @vite-ignore */ `${"@capacitor"}/haptics`
+    ).catch(() => null);
     if (mod?.Haptics) capHaptics = mod.Haptics;
   } catch {
     /* ignore */
