@@ -58,11 +58,19 @@ declare global {
     YT?: any;
     onYouTubeIframeAPIReady?: () => void;
     SonoraNativeAudio?: {
-      start?: (title: string, artist: string) => void;
+      start?: (
+        title: string,
+        artist: string,
+        artwork?: string,
+        isPlaying?: boolean,
+        positionMs?: number,
+        durationMs?: number,
+      ) => void;
       stop?: () => void;
     };
   }
 }
+
 
 function isNativeAndroidPlayback() {
   if (typeof window === "undefined") return false;
@@ -437,16 +445,68 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, [progress, duration, current]);
 
+  // Sync playback state to the native Android foreground service (notification + MediaSession).
   useEffect(() => {
     if (typeof window === "undefined" || !window.SonoraNativeAudio) return;
     try {
-      if (current && isPlaying) {
-        window.SonoraNativeAudio.start?.(current.title, current.artist);
+      if (current) {
+        window.SonoraNativeAudio.start?.(
+          current.title,
+          current.artist,
+          current.artwork,
+          isPlaying,
+          Math.round((progress || 0) * 1000),
+          Math.round((duration || current.duration || 0) * 1000),
+        );
       } else {
         window.SonoraNativeAudio.stop?.();
       }
     } catch {}
-  }, [current, isPlaying]);
+  }, [current, isPlaying, duration]);
+
+  // Periodically push position to the native service so the lock-screen scrubber is accurate.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.SonoraNativeAudio) return;
+    if (!current || !isPlaying) return;
+    const t = window.setInterval(() => {
+      try {
+        window.SonoraNativeAudio?.start?.(
+          current.title,
+          current.artist,
+          current.artwork,
+          true,
+          Math.round((progress || 0) * 1000),
+          Math.round((duration || current.duration || 0) * 1000),
+        );
+      } catch {}
+    }, 5000);
+    return () => window.clearInterval(t);
+  }, [current, isPlaying, progress, duration]);
+
+  // Notification / lock-screen / Bluetooth button events from native bridge.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onAction = (ev: Event) => {
+      const detail = (ev as CustomEvent<string>).detail || "";
+      if (detail === "play" && !isPlaying) togglePlay();
+      else if (detail === "pause" && isPlaying) togglePlay();
+      else if (detail === "next") next();
+      else if (detail === "prev") prev();
+      else if (detail === "stop") {
+        const media = getActiveMedia();
+        media?.pause();
+        youtubePlayerRef.current?.pauseVideo?.();
+        setIsPlaying(false);
+      } else if (detail.startsWith("seek:")) {
+        const ms = Number(detail.slice(5));
+        if (Number.isFinite(ms)) seek(ms / 1000);
+      }
+    };
+    window.addEventListener("sonora:media-action", onAction as EventListener);
+    return () => window.removeEventListener("sonora:media-action", onAction as EventListener);
+  }, [isPlaying, current]);
+
+
 
 
 
