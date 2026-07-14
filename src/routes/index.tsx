@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { TrendingUp, Radio, Sparkles, Youtube, RefreshCw, AlertCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { homeFeed, youtubeTrending } from "@/lib/music-sources.functions";
 import { TrackGrid } from "@/components/track-card";
 import { Skeleton } from "@/components/ui/skeleton";
