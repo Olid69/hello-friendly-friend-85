@@ -15,6 +15,22 @@ const config: CapacitorConfig = {
     url: "https://sonora-stream.lovable.app",
     androidScheme: "https",
     cleartext: true,
+    // Keep OAuth navigation INSIDE the WebView. Without this, Capacitor's
+    // default WebViewClient sends oauth.lovable.app / accounts.google.com
+    // to Chrome, and the returned session never lands back in the app.
+    allowNavigation: [
+      "sonora-stream.lovable.app",
+      "*.lovable.app",
+      "*.lovable.dev",
+      "oauth.lovable.app",
+      "*.supabase.co",
+      "*.supabase.io",
+      "accounts.google.com",
+      "*.google.com",
+      "*.googleapis.com",
+      "*.gstatic.com",
+      "ssl.gstatic.com",
+    ],
   },
   android: {
     allowMixedContent: true,
