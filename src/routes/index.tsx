@@ -103,6 +103,9 @@ function HomePage() {
 
         {data && (
           <>
+            <Section icon={<Youtube className="h-4 w-4" />} title="Popular on YouTube">
+              <TrackGrid tracks={data.youtube} />
+            </Section>
             <Section icon={<TrendingUp className="h-4 w-4" />} title="Popular on Jamendo">
               <TrackGrid tracks={data.jamendo} />
             </Section>
