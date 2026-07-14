@@ -13,7 +13,7 @@ export function MobileNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-border bg-sidebar px-2 pt-2 pb-[env(safe-area-inset-bottom,0.5rem)]">
+    <nav className="glass-nav md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-sidebar-border px-2 pt-2 pb-[env(safe-area-inset-bottom,0.5rem)]">
       {items.map((item) => {
         const Icon = item.icon;
         const active = pathname === item.to;

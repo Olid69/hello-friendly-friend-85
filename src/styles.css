@@ -53,6 +53,7 @@
   --color-player: var(--player);
   --color-player-foreground: var(--player-foreground);
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Force dark-first — this is a music app; light mode is not offered. */
@@ -181,3 +182,49 @@
     var(--color-background) 60%
   );
 }
+
+@utility font-heading {
+  font-family: var(--font-heading);
+  letter-spacing: -0.015em;
+}
+
+@utility glass {
+  background-color: color-mix(in oklab, var(--color-player) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(160%);
+  border-color: color-mix(in oklab, var(--color-border) 60%, transparent);
+}
+
+@utility glass-nav {
+  background-color: color-mix(in oklab, var(--color-sidebar) 78%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+}
+
+@utility shimmer {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-muted) 60%, transparent);
+}
+@utility shimmer-overlay {
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--color-foreground) 8%, transparent) 50%,
+    transparent 100%
+  );
+  animation: shimmer-slide 1.6s ease-in-out infinite;
+}
+@keyframes shimmer-slide {
+  100% { transform: translateX(100%); }
+}
+
+@keyframes float-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@utility animate-float-in {
+  animation: float-in 320ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+

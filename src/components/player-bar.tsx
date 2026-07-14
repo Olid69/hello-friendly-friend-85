@@ -62,7 +62,7 @@ export function PlayerBar() {
   };
 
   return (
-    <footer className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 z-30 border-t border-border bg-player text-player-foreground">
+    <footer className="glass fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 z-30 border-t text-player-foreground shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.5)]">
       <div className="flex items-center gap-3 px-3 py-2 md:px-4 md:py-3">
         {/* Track info */}
         <div
