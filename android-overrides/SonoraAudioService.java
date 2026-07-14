@@ -531,7 +531,6 @@ public class SonoraAudioService extends Service {
       case "stop":
         stopNativePlayback();
         MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "stop");
-        MainActivity.dispatchMediaAction("stop");
         stopForeground(true);
         stopSelf();
         break;
