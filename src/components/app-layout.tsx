@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Menu, Music2 } from "lucide-react";
+import { useRouterState } from "@tanstack/react-router";
 import { AppSidebar } from "./app-sidebar";
 import { MobileNav } from "./mobile-nav";
 import { PlayerBar } from "./player-bar";
@@ -7,6 +8,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <div className="flex min-h-screen w-full bg-background text-foreground">
       <AppSidebar />
@@ -31,7 +33,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <span className="font-bold">Sonora</span>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto pb-40 md:pb-24">{children}</main>
+        <main className="flex-1 overflow-y-auto pb-40 md:pb-24 [scrollbar-gutter:stable]">
+          <div key={pathname} className="animate-page-enter">{children}</div>
+        </main>
       </div>
       <PlayerBar />
       <MobileNav />

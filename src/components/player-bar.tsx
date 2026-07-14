@@ -19,6 +19,7 @@ import { useLiked } from "@/lib/library-store";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
+import { haptic } from "@/lib/haptics";
 
 function fmt(sec: number) {
   if (!Number.isFinite(sec) || sec < 0) return "0:00";
@@ -138,17 +139,17 @@ export function PlayerBar() {
               <Shuffle className="h-4 w-4" />
             </button>
             <button
-              onClick={prev}
-              className="md-interactive rounded-full p-2 text-muted-foreground hover:text-foreground"
+              onClick={() => { haptic("light"); prev(); }}
+              className="md-interactive rounded-full p-2 text-muted-foreground hover:text-foreground active:scale-90"
               aria-label="Previous"
             >
               <SkipBack className="h-5 w-5" />
             </button>
             <button
-              onClick={togglePlay}
+              onClick={() => { haptic("medium"); togglePlay(); }}
               disabled={!current}
               className={cn(
-                "md-interactive flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-transform disabled:opacity-40 md:h-10 md:w-10",
+                "md-interactive flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-transform active:scale-90 disabled:opacity-40 md:h-10 md:w-10",
               )}
               aria-label={isPlaying ? "Pause" : "Play"}
             >
@@ -159,8 +160,8 @@ export function PlayerBar() {
               )}
             </button>
             <button
-              onClick={next}
-              className="md-interactive rounded-full p-2 text-muted-foreground hover:text-foreground"
+              onClick={() => { haptic("light"); next(); }}
+              className="md-interactive rounded-full p-2 text-muted-foreground hover:text-foreground active:scale-90"
               aria-label="Next"
             >
               <SkipForward className="h-5 w-5" />
@@ -214,14 +215,14 @@ function PlayerActions() {
   return (
     <div className="hidden md:flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
       <button
-        onClick={() => toggleLike(current)}
+        onClick={() => { haptic(liked ? "light" : "medium"); toggleLike(current); }}
         className={cn(
-          "md-interactive rounded-full p-2",
+          "md-interactive rounded-full p-2 active:scale-90",
           liked ? "text-primary" : "text-muted-foreground hover:text-foreground",
         )}
         aria-label="Like"
       >
-        <Heart className={cn("h-4 w-4", liked && "fill-current")} />
+        <Heart className={cn("h-4 w-4 transition-transform", liked && "fill-current scale-110")} />
       </button>
       <Link
         to="/lyrics"
