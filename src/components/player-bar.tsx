@@ -215,14 +215,14 @@ function PlayerActions() {
   return (
     <div className="hidden md:flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
       <button
-        onClick={() => toggleLike(current)}
+        onClick={() => { haptic(liked ? "light" : "medium"); toggleLike(current); }}
         className={cn(
-          "md-interactive rounded-full p-2",
+          "md-interactive rounded-full p-2 active:scale-90",
           liked ? "text-primary" : "text-muted-foreground hover:text-foreground",
         )}
         aria-label="Like"
       >
-        <Heart className={cn("h-4 w-4", liked && "fill-current")} />
+        <Heart className={cn("h-4 w-4 transition-transform", liked && "fill-current scale-110")} />
       </button>
       <Link
         to="/lyrics"
