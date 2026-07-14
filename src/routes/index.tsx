@@ -70,6 +70,9 @@ function Section({
 }
 
 const PULL_THRESHOLD = 70;
+const YT_CACHE_KEY = "sonora:yt-trending:v1";
+
+type YoutubeTrendingResult = Awaited<ReturnType<typeof youtubeTrending>>;
 
 function HomePage() {
   const [greeting, setGreeting] = useState("Welcome back");
