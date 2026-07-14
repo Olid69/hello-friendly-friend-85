@@ -20,10 +20,12 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
   private static final String APP_ORIGIN = "https://sonora-stream.lovable.app";
+  private static MainActivity instance;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    instance = this;
 
     WebView webView = getBridge().getWebView();
     WebSettings settings = webView.getSettings();
@@ -43,6 +45,7 @@ public class MainActivity extends BridgeActivity {
       checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
       requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 7002);
     }
+
 
     webView.setWebChromeClient(new WebChromeClient() {
       @Override
@@ -108,18 +111,45 @@ public class MainActivity extends BridgeActivity {
     return true;
   }
 
+  /**
+   * Called from SonoraAudioService on the binder thread when a notification /
+   * MediaSession / hardware button fires. Bounces to the JS layer, which owns
+   * the audio element and queue.
+   */
+  public static void dispatchMediaAction(final String action) {
+    final MainActivity a = instance;
+    if (a == null || a.getBridge() == null || a.getBridge().getWebView() == null) return;
+    final WebView wv = a.getBridge().getWebView();
+    final String safe = action == null ? "" : action.replace("\\", "\\\\").replace("'", "\\'");
+    wv.post(() -> wv.evaluateJavascript(
+      "window.dispatchEvent(new CustomEvent('sonora:media-action',{detail:'" + safe + "'}))",
+      null
+    ));
+  }
+
   public class SonoraNativeAudioBridge {
     @JavascriptInterface
-    public void start(String title, String artist) {
+    public void start(String title, String artist, String artwork,
+                      boolean isPlaying, double positionMs, double durationMs) {
       Intent intent = new Intent(MainActivity.this, SonoraAudioService.class);
       intent.setAction(SonoraAudioService.ACTION_START);
       intent.putExtra(SonoraAudioService.EXTRA_TITLE, title == null ? "Sonora" : title);
       intent.putExtra(SonoraAudioService.EXTRA_ARTIST, artist == null ? "Playing" : artist);
+      if (artwork != null) intent.putExtra(SonoraAudioService.EXTRA_ARTWORK, artwork);
+      intent.putExtra(SonoraAudioService.EXTRA_IS_PLAYING, isPlaying);
+      intent.putExtra(SonoraAudioService.EXTRA_POSITION_MS, (long) positionMs);
+      intent.putExtra(SonoraAudioService.EXTRA_DURATION_MS, (long) durationMs);
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         startForegroundService(intent);
       } else {
         startService(intent);
       }
+    }
+
+    // Back-compat overload for any older JS callers.
+    @JavascriptInterface
+    public void start(String title, String artist) {
+      start(title, artist, null, true, 0.0, 0.0);
     }
 
     @JavascriptInterface
@@ -129,6 +159,7 @@ public class MainActivity extends BridgeActivity {
       startService(intent);
     }
   }
+
 
   @Override
   public void onPause() {
