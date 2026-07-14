@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TrendingUp, Radio, Sparkles, Youtube, RefreshCw } from "lucide-react";
+import { TrendingUp, Radio, Sparkles, Youtube, RefreshCw, AlertCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { homeFeed, youtubeTrending } from "@/lib/music-sources.functions";
@@ -197,8 +197,37 @@ function HomePage() {
             >
               {youtubeQuery.isLoading && youtubeTracks.length === 0 ? (
                 <GridSkeleton />
+              ) : youtubeQuery.isError && youtubeTracks.length === 0 ? (
+                <div
+                  role="alert"
+                  className="flex flex-col items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center"
+                >
+                  <AlertCircle className="h-8 w-8 text-destructive" />
+                  <div>
+                    <p className="font-medium">Couldn't load YouTube trending</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {(youtubeQuery.error as Error)?.message ??
+                        "Check your connection or try again."}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => youtubeQuery.refetch()}
+                    disabled={isRefreshing}
+                    className="gap-2"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+                    Retry
+                  </Button>
+                </div>
+              ) : youtubeTracks.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                  No trending tracks right now. Try refreshing in a moment.
+                </div>
               ) : (
-                <TrackGrid tracks={youtubeTracks} />
+                <div className={cn(isRefreshing && "opacity-60 transition-opacity")}>
+                  <TrackGrid tracks={youtubeTracks} />
+                </div>
               )}
             </Section>
             {data && (
