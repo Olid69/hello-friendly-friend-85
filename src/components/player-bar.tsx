@@ -11,6 +11,7 @@ import {
   Music2,
   Mic2,
   ListMusic,
+  Loader2,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { usePlayer } from "@/lib/player-context";
@@ -18,7 +19,6 @@ import { useLiked } from "@/lib/library-store";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
-
 
 function fmt(sec: number) {
   if (!Number.isFinite(sec) || sec < 0) return "0:00";
@@ -61,19 +61,29 @@ export function PlayerBar() {
     if (current) navigate({ to: "/player" });
   };
 
+  const pct = duration > 0 ? (progress / duration) * 100 : 0;
+
   return (
-    <footer className="glass fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 z-30 border-t text-player-foreground shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.5)]">
-      <div className="flex items-center gap-3 px-3 py-2 md:px-4 md:py-3">
+    <footer className="glass-player fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 z-30 text-player-foreground shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)]">
+      {/* Slim always-visible progress track (mobile) */}
+      <div className="md:hidden absolute top-0 left-0 right-0 h-[3px] bg-outline-variant/30">
+        <div
+          className="h-full bg-primary transition-[width] duration-200 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      <div className="flex items-center gap-3 px-3 py-2 md:px-5 md:py-3">
         {/* Track info */}
         <div
           onClick={openFullPlayer}
           role={current ? "button" : undefined}
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-3 md:w-72 md:flex-none",
+            "md-interactive flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-1.5 py-1 md:w-72 md:flex-none md:px-2",
             current && "cursor-pointer",
           )}
         >
-          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-card">
+          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-surface-container">
             {current?.artwork ? (
               <img
                 src={current.artwork}
@@ -85,16 +95,21 @@ export function PlayerBar() {
                 <Music2 className="h-5 w-5" />
               </div>
             )}
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              </div>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <p className="truncate text-sm font-medium">
+              <p className="truncate text-sm font-semibold">
                 {current?.title ?? "Nothing playing"}
               </p>
               {current && (
                 <span
                   className={cn(
-                    "hidden md:inline shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+                    "hidden md:inline shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
                     sourceColors[current.source],
                   )}
                 >
@@ -103,7 +118,7 @@ export function PlayerBar() {
               )}
             </div>
             <p className="truncate text-xs text-muted-foreground">
-              {error ?? (isLoading ? "Loading stream..." : current?.artist ?? "Search and play a track")}
+              {error ?? (isLoading ? "Loading stream…" : current?.artist ?? "Search and play a track")}
             </p>
           </div>
           <PlayerActions />
@@ -111,13 +126,12 @@ export function PlayerBar() {
 
         {/* Controls */}
         <div className="flex flex-1 flex-col items-center gap-1">
-
-          <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex items-center gap-1 md:gap-3">
             <button
               onClick={toggleShuffle}
               className={cn(
-                "hidden md:inline-flex",
-                shuffle ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                "hidden md:inline-flex md-interactive rounded-full p-2 transition-colors",
+                shuffle ? "text-primary bg-primary-container/50" : "text-muted-foreground hover:text-foreground",
               )}
               aria-label="Shuffle"
             >
@@ -125,7 +139,7 @@ export function PlayerBar() {
             </button>
             <button
               onClick={prev}
-              className="text-muted-foreground hover:text-foreground"
+              className="md-interactive rounded-full p-2 text-muted-foreground hover:text-foreground"
               aria-label="Previous"
             >
               <SkipBack className="h-5 w-5" />
@@ -133,18 +147,20 @@ export function PlayerBar() {
             <button
               onClick={togglePlay}
               disabled={!current}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-105 disabled:opacity-40"
+              className={cn(
+                "md-interactive flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-transform disabled:opacity-40 md:h-10 md:w-10",
+              )}
               aria-label={isPlaying ? "Pause" : "Play"}
             >
-              {isPlaying || isLoading ? (
-                <Pause className="h-4 w-4 fill-current" />
+              {isPlaying ? (
+                <Pause className="h-5 w-5 fill-current" />
               ) : (
-                <Play className="h-4 w-4 fill-current" />
+                <Play className="h-5 w-5 fill-current translate-x-[1px]" />
               )}
             </button>
             <button
               onClick={next}
-              className="text-muted-foreground hover:text-foreground"
+              className="md-interactive rounded-full p-2 text-muted-foreground hover:text-foreground"
               aria-label="Next"
             >
               <SkipForward className="h-5 w-5" />
@@ -152,9 +168,9 @@ export function PlayerBar() {
             <button
               onClick={cycleRepeat}
               className={cn(
-                "hidden md:inline-flex",
+                "hidden md:inline-flex md-interactive rounded-full p-2 transition-colors",
                 repeat !== "off"
-                  ? "text-primary"
+                  ? "text-primary bg-primary-container/50"
                   : "text-muted-foreground hover:text-foreground",
               )}
               aria-label="Repeat"
@@ -162,8 +178,8 @@ export function PlayerBar() {
               <RepeatIcon className="h-4 w-4" />
             </button>
           </div>
-          <div className="hidden md:flex w-full max-w-xl items-center gap-2 text-[10px] text-muted-foreground">
-            <span className="w-8 text-right tabular-nums">{fmt(progress)}</span>
+          <div className="hidden md:flex w-full max-w-xl items-center gap-2 text-[10px] tabular-nums text-muted-foreground">
+            <span className="w-8 text-right">{fmt(progress)}</span>
             <Slider
               value={[progress]}
               max={duration || 1}
@@ -171,7 +187,7 @@ export function PlayerBar() {
               onValueChange={(v) => seek(v[0] ?? 0)}
               className="flex-1"
             />
-            <span className="w-8 tabular-nums">{fmt(duration)}</span>
+            <span className="w-8">{fmt(duration)}</span>
           </div>
         </div>
 
@@ -196,10 +212,11 @@ function PlayerActions() {
   if (!current) return null;
   const liked = isLiked(current.id);
   return (
-    <div className="hidden md:flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+    <div className="hidden md:flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
       <button
         onClick={() => toggleLike(current)}
         className={cn(
+          "md-interactive rounded-full p-2",
           liked ? "text-primary" : "text-muted-foreground hover:text-foreground",
         )}
         aria-label="Like"
@@ -208,14 +225,14 @@ function PlayerActions() {
       </button>
       <Link
         to="/lyrics"
-        className="text-muted-foreground hover:text-foreground"
+        className="md-interactive rounded-full p-2 text-muted-foreground hover:text-foreground"
         aria-label="Lyrics"
       >
         <Mic2 className="h-4 w-4" />
       </Link>
       <Link
         to="/queue"
-        className="text-muted-foreground hover:text-foreground"
+        className="md-interactive rounded-full p-2 text-muted-foreground hover:text-foreground"
         aria-label="Queue"
       >
         <ListMusic className="h-4 w-4" />
@@ -223,4 +240,3 @@ function PlayerActions() {
     </div>
   );
 }
-
