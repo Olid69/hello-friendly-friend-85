@@ -583,6 +583,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (detail.status === "ready" || detail.status === "progress" || detail.status === "play") {
         setIsLoading(false);
         setError(null);
+      } else if (detail.status === "buffering") {
+        setIsLoading(true);
+        setError(null);
       } else if (detail.status === "ended") {
         setIsPlaying(false);
         finishTrack();

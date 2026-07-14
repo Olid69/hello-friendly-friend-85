@@ -180,7 +180,7 @@ public class MainActivity extends BridgeActivity {
       intent.setAction(SonoraAudioService.ACTION_CONTROL);
       intent.putExtra(SonoraAudioService.EXTRA_CONTROL, action == null ? "" : action);
       intent.putExtra(SonoraAudioService.EXTRA_POSITION_MS, (long) positionMs);
-      startService(intent);
+      startPlaybackService(intent);
     }
 
     @JavascriptInterface
@@ -207,7 +207,7 @@ public class MainActivity extends BridgeActivity {
     public void stop() {
       Intent intent = new Intent(MainActivity.this, SonoraAudioService.class);
       intent.setAction(SonoraAudioService.ACTION_STOP);
-      startService(intent);
+      startPlaybackService(intent);
     }
   }
 
