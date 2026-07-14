@@ -2,21 +2,34 @@
 @source "../src";
 @import "tw-animate-css";
 
+/* Self-hosted variable fonts — bundled into the APK for offline use.
+ * Roboto Flex: Material 3 default body/display.
+ * Noto Sans Bengali: for Bangla UI copy.
+ * Material Symbols Rounded: full icon set.
+ * These `@import` lines MUST stay at the top before any other rule. */
+@import "@fontsource-variable/roboto-flex";
+@import "@fontsource-variable/noto-sans-bengali";
+@import "@fontsource/material-symbols-rounded/index.css";
+
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Spotify-inspired dark theme with green accent.
+ * Material 3 (Material You) dark theme with expressive tonal surfaces.
  * All colors use oklch. Semantic tokens only — never hardcode colors in JSX.
+ * Accent seed can be swapped at runtime by writing to --seed-h / --seed-c.
  */
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 28px;
+  --radius-2xl: 32px;
+  --radius-3xl: 40px;
+  --radius-4xl: 48px;
+  --radius: var(--radius-lg);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -52,96 +65,111 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-player: var(--player);
   --color-player-foreground: var(--player-foreground);
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-heading: "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Material 3 semantic colors */
+  --color-primary-container: var(--md-primary-container);
+  --color-on-primary-container: var(--md-on-primary-container);
+  --color-secondary-container: var(--md-secondary-container);
+  --color-on-secondary-container: var(--md-on-secondary-container);
+  --color-tertiary: var(--md-tertiary);
+  --color-tertiary-container: var(--md-tertiary-container);
+  --color-on-tertiary-container: var(--md-on-tertiary-container);
+  --color-surface: var(--md-surface);
+  --color-surface-container-lowest: var(--md-surface-container-lowest);
+  --color-surface-container-low: var(--md-surface-container-low);
+  --color-surface-container: var(--md-surface-container);
+  --color-surface-container-high: var(--md-surface-container-high);
+  --color-surface-container-highest: var(--md-surface-container-highest);
+  --color-outline: var(--md-outline);
+  --color-outline-variant: var(--md-outline-variant);
+
+  --font-sans: "Roboto Flex Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Roboto Flex Variable", "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-bengali: "Noto Sans Bengali Variable", "Roboto Flex Variable", sans-serif;
+  --font-icon: "Material Symbols Rounded";
+
+  /* MD3 motion — emphasized easing curves */
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized-decel: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-emphasized-accel: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Force dark-first — this is a music app; light mode is not offered. */
+/* Material 3 dark theme — expressive dark surfaces with green primary seed. */
 :root {
-  --radius: 0.75rem;
+  /* Accent seed — can be overridden by user in Settings */
+  --seed-h: 148;
+  --seed-c: 0.19;
 
-  /* Spotify-like near-black background with subtle gradient layers */
-  --background: oklch(0.13 0.005 260);
-  --foreground: oklch(0.98 0.005 260);
+  --radius: 16px;
 
-  --card: oklch(0.17 0.008 260);
-  --card-foreground: oklch(0.98 0.005 260);
+  --background: oklch(0.14 0.008 260);
+  --foreground: oklch(0.97 0.004 260);
 
-  --popover: oklch(0.19 0.008 260);
-  --popover-foreground: oklch(0.98 0.005 260);
+  --card: oklch(0.19 0.01 260);
+  --card-foreground: oklch(0.97 0.004 260);
 
-  /* Spotify green #1DB954 */
-  --primary: oklch(0.72 0.19 148);
-  --primary-foreground: oklch(0.13 0.005 260);
+  --popover: oklch(0.22 0.012 260);
+  --popover-foreground: oklch(0.97 0.004 260);
 
-  --secondary: oklch(0.22 0.008 260);
-  --secondary-foreground: oklch(0.98 0.005 260);
+  --primary: oklch(0.78 var(--seed-c) var(--seed-h));
+  --primary-foreground: oklch(0.15 0.02 var(--seed-h));
 
-  --muted: oklch(0.22 0.008 260);
-  --muted-foreground: oklch(0.68 0.01 260);
+  --secondary: oklch(0.28 0.02 260);
+  --secondary-foreground: oklch(0.97 0.004 260);
 
-  --accent: oklch(0.72 0.19 148);
-  --accent-foreground: oklch(0.13 0.005 260);
+  --muted: oklch(0.24 0.012 260);
+  --muted-foreground: oklch(0.72 0.012 260);
 
-  --destructive: oklch(0.62 0.22 22);
+  --accent: oklch(0.78 var(--seed-c) var(--seed-h));
+  --accent-foreground: oklch(0.15 0.02 var(--seed-h));
+
+  --destructive: oklch(0.68 0.2 22);
   --destructive-foreground: oklch(0.98 0.005 260);
 
-  --border: oklch(0.26 0.008 260);
-  --input: oklch(0.22 0.008 260);
-  --ring: oklch(0.72 0.19 148);
+  --border: oklch(0.28 0.012 260);
+  --input: oklch(0.24 0.012 260);
+  --ring: oklch(0.78 var(--seed-c) var(--seed-h));
 
-  --chart-1: oklch(0.72 0.19 148);
-  --chart-2: oklch(0.7 0.15 220);
-  --chart-3: oklch(0.75 0.16 60);
-  --chart-4: oklch(0.65 0.2 340);
-  --chart-5: oklch(0.7 0.18 280);
+  --chart-1: oklch(0.78 var(--seed-c) var(--seed-h));
+  --chart-2: oklch(0.72 0.15 220);
+  --chart-3: oklch(0.78 0.16 60);
+  --chart-4: oklch(0.7 0.2 340);
+  --chart-5: oklch(0.72 0.18 280);
 
-  /* Sidebar (Spotify uses pure black) */
-  --sidebar: oklch(0.08 0 0);
-  --sidebar-foreground: oklch(0.85 0.005 260);
-  --sidebar-primary: oklch(0.72 0.19 148);
-  --sidebar-primary-foreground: oklch(0.13 0.005 260);
-  --sidebar-accent: oklch(0.2 0.008 260);
-  --sidebar-accent-foreground: oklch(0.98 0.005 260);
-  --sidebar-border: oklch(0.2 0.008 260);
-  --sidebar-ring: oklch(0.72 0.19 148);
+  --sidebar: oklch(0.11 0.006 260);
+  --sidebar-foreground: oklch(0.88 0.005 260);
+  --sidebar-primary: oklch(0.78 var(--seed-c) var(--seed-h));
+  --sidebar-primary-foreground: oklch(0.15 0.02 var(--seed-h));
+  --sidebar-accent: oklch(0.22 0.012 260);
+  --sidebar-accent-foreground: oklch(0.97 0.004 260);
+  --sidebar-border: oklch(0.22 0.012 260);
+  --sidebar-ring: oklch(0.78 var(--seed-c) var(--seed-h));
 
-  /* Bottom player bar */
-  --player: oklch(0.16 0.008 260);
-  --player-foreground: oklch(0.98 0.005 260);
+  --player: oklch(0.18 0.01 260);
+  --player-foreground: oklch(0.97 0.004 260);
+
+  /* Material 3 tonal palette (dark scheme) */
+  --md-primary-container: oklch(0.32 calc(var(--seed-c) * 0.6) var(--seed-h));
+  --md-on-primary-container: oklch(0.93 calc(var(--seed-c) * 0.4) var(--seed-h));
+  --md-secondary-container: oklch(0.3 0.03 calc(var(--seed-h) + 40));
+  --md-on-secondary-container: oklch(0.93 0.03 calc(var(--seed-h) + 40));
+  --md-tertiary: oklch(0.78 0.13 calc(var(--seed-h) + 90));
+  --md-tertiary-container: oklch(0.32 0.06 calc(var(--seed-h) + 90));
+  --md-on-tertiary-container: oklch(0.93 0.06 calc(var(--seed-h) + 90));
+  --md-surface: oklch(0.14 0.008 260);
+  --md-surface-container-lowest: oklch(0.1 0.006 260);
+  --md-surface-container-low: oklch(0.17 0.008 260);
+  --md-surface-container: oklch(0.2 0.01 260);
+  --md-surface-container-high: oklch(0.24 0.012 260);
+  --md-surface-container-highest: oklch(0.28 0.012 260);
+  --md-outline: oklch(0.55 0.015 260);
+  --md-outline-variant: oklch(0.32 0.012 260);
 }
 
 /* .dark = same as :root; app is always dark. Kept so shadcn variants work. */
 .dark {
-  --background: oklch(0.13 0.005 260);
-  --foreground: oklch(0.98 0.005 260);
-  --card: oklch(0.17 0.008 260);
-  --card-foreground: oklch(0.98 0.005 260);
-  --popover: oklch(0.19 0.008 260);
-  --popover-foreground: oklch(0.98 0.005 260);
-  --primary: oklch(0.72 0.19 148);
-  --primary-foreground: oklch(0.13 0.005 260);
-  --secondary: oklch(0.22 0.008 260);
-  --secondary-foreground: oklch(0.98 0.005 260);
-  --muted: oklch(0.22 0.008 260);
-  --muted-foreground: oklch(0.68 0.01 260);
-  --accent: oklch(0.72 0.19 148);
-  --accent-foreground: oklch(0.13 0.005 260);
-  --destructive: oklch(0.62 0.22 22);
-  --destructive-foreground: oklch(0.98 0.005 260);
-  --border: oklch(0.26 0.008 260);
-  --input: oklch(0.22 0.008 260);
-  --ring: oklch(0.72 0.19 148);
-  --sidebar: oklch(0.08 0 0);
-  --sidebar-foreground: oklch(0.85 0.005 260);
-  --sidebar-primary: oklch(0.72 0.19 148);
-  --sidebar-primary-foreground: oklch(0.13 0.005 260);
-  --sidebar-accent: oklch(0.2 0.008 260);
-  --sidebar-accent-foreground: oklch(0.98 0.005 260);
-  --sidebar-border: oklch(0.2 0.008 260);
-  --sidebar-ring: oklch(0.72 0.19 148);
-  --player: oklch(0.16 0.008 260);
-  --player-foreground: oklch(0.98 0.005 260);
+  color-scheme: dark;
 }
 
 @layer base {
@@ -154,55 +182,196 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
-  /* Custom scrollbar — subtle, Spotify-like */
+  /* Bengali text — use Noto Sans Bengali automatically when lang attribute present */
+  :lang(bn), [lang="bn"] {
+    font-family: var(--font-bengali);
+  }
+
+  /* Custom scrollbar — subtle, MD3 outline tone */
   ::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: oklch(0.3 0.008 260);
-    border-radius: 6px;
-    border: 3px solid var(--color-background);
+    background: color-mix(in oklab, var(--md-outline) 55%, transparent);
+    border-radius: 8px;
+    border: 2px solid var(--color-background);
+    transition: background 200ms var(--ease-standard);
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.4 0.008 260);
+    background: color-mix(in oklab, var(--md-outline) 85%, transparent);
+  }
+
+  /* Prevent iOS Safari tap highlight; use MD3 state layers instead. */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Selection */
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 40%, transparent);
+    color: var(--foreground);
   }
 }
 
-@utility gradient-hero {
-  background-image: linear-gradient(
-    180deg,
-    oklch(0.25 0.05 148 / 0.4) 0%,
-    var(--color-background) 60%
-  );
+/* ------------------------------------------------------------------
+ * Material 3 utilities
+ * ------------------------------------------------------------------ */
+
+/* Material Symbols icon utility. Use <span class="m-icon">home</span>. */
+@utility m-icon {
+  font-family: var(--font-icon);
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: "liga";
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
 }
+@utility m-icon-filled {
+  font-variation-settings: "FILL" 1, "wght" 500, "GRAD" 0, "opsz" 24;
+}
+
+/* MD3 elevation — tonal surface tint + shadow. Levels 0-5. */
+@utility md-elevation-0 {
+  background-color: var(--md-surface);
+  box-shadow: none;
+}
+@utility md-elevation-1 {
+  background-color: var(--md-surface-container-low);
+  box-shadow: 0 1px 2px 0 oklch(0 0 0 / 0.3), 0 1px 3px 1px oklch(0 0 0 / 0.15);
+}
+@utility md-elevation-2 {
+  background-color: var(--md-surface-container);
+  box-shadow: 0 1px 2px 0 oklch(0 0 0 / 0.3), 0 2px 6px 2px oklch(0 0 0 / 0.15);
+}
+@utility md-elevation-3 {
+  background-color: var(--md-surface-container-high);
+  box-shadow: 0 4px 8px 3px oklch(0 0 0 / 0.15), 0 1px 3px 0 oklch(0 0 0 / 0.3);
+}
+@utility md-elevation-4 {
+  background-color: var(--md-surface-container-high);
+  box-shadow: 0 6px 10px 4px oklch(0 0 0 / 0.15), 0 2px 3px 0 oklch(0 0 0 / 0.3);
+}
+@utility md-elevation-5 {
+  background-color: var(--md-surface-container-highest);
+  box-shadow: 0 8px 12px 6px oklch(0 0 0 / 0.15), 0 4px 4px 0 oklch(0 0 0 / 0.3);
+}
+
+/* MD3 state layer — hover/focus/pressed overlay over any surface. */
+@utility md-state {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    background-color 200ms var(--ease-standard),
+    transform 200ms var(--ease-standard),
+    box-shadow 240ms var(--ease-emphasized);
+}
+@utility md-state::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms var(--ease-standard);
+  z-index: 0;
+}
+@utility md-interactive {
+  position: relative;
+  isolation: isolate;
+  cursor: pointer;
+  transition:
+    background-color 200ms var(--ease-standard),
+    transform 200ms var(--ease-standard),
+    box-shadow 240ms var(--ease-emphasized);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms var(--ease-standard);
+    border-radius: inherit;
+  }
+  &:hover::after { opacity: 0.08; }
+  &:focus-visible::after { opacity: 0.12; }
+  &:active::after { opacity: 0.16; }
+  &:active { transform: scale(0.97); }
+}
+
+/* MD3 typography scale */
+@utility md-display-lg { font-family: var(--font-heading); font-size: 3.5rem; line-height: 4rem; font-weight: 400; letter-spacing: -0.02em; }
+@utility md-display-md { font-family: var(--font-heading); font-size: 2.8rem; line-height: 3.25rem; font-weight: 400; letter-spacing: -0.015em; }
+@utility md-display-sm { font-family: var(--font-heading); font-size: 2.25rem; line-height: 2.75rem; font-weight: 400; letter-spacing: -0.01em; }
+@utility md-headline-lg { font-family: var(--font-heading); font-size: 2rem; line-height: 2.5rem; font-weight: 500; letter-spacing: -0.01em; }
+@utility md-headline-md { font-family: var(--font-heading); font-size: 1.75rem; line-height: 2.25rem; font-weight: 500; letter-spacing: -0.005em; }
+@utility md-title-lg { font-family: var(--font-heading); font-size: 1.375rem; line-height: 1.75rem; font-weight: 500; }
+@utility md-title-md { font-size: 1rem; line-height: 1.5rem; font-weight: 500; letter-spacing: 0.01em; }
+@utility md-label-lg { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; letter-spacing: 0.005em; }
 
 @utility font-heading {
   font-family: var(--font-heading);
   letter-spacing: -0.015em;
+  font-variation-settings: "wght" 600, "wdth" 105;
 }
 
+/* MD3 expressive hero gradient — tonal primary tint */
+@utility gradient-hero {
+  background-image:
+    radial-gradient(1200px 500px at 20% -10%, color-mix(in oklab, var(--primary) 22%, transparent), transparent 60%),
+    radial-gradient(900px 400px at 90% 10%, color-mix(in oklab, var(--md-tertiary) 18%, transparent), transparent 60%),
+    linear-gradient(180deg, color-mix(in oklab, var(--md-surface-container-low) 100%, transparent) 0%, var(--color-background) 70%);
+}
+
+/* MD3 tonal glass — used on nav and player */
 @utility glass {
-  background-color: color-mix(in oklab, var(--color-player) 72%, transparent);
-  backdrop-filter: blur(24px) saturate(160%);
-  border-color: color-mix(in oklab, var(--color-border) 60%, transparent);
+  background-color: color-mix(in oklab, var(--md-surface-container-high) 70%, transparent);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-color: color-mix(in oklab, var(--md-outline-variant) 70%, transparent);
 }
-
 @utility glass-nav {
-  background-color: color-mix(in oklab, var(--color-sidebar) 78%, transparent);
-  backdrop-filter: blur(20px) saturate(160%);
+  background-color: color-mix(in oklab, var(--sidebar) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+}
+@utility glass-player {
+  background-color: color-mix(in oklab, var(--player) 78%, transparent);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-top: 1px solid color-mix(in oklab, var(--md-outline-variant) 60%, transparent);
 }
 
+/* Shimmer skeleton */
 @utility shimmer {
   position: relative;
   overflow: hidden;
-  background: color-mix(in oklab, var(--color-muted) 60%, transparent);
+  background: color-mix(in oklab, var(--md-surface-container) 100%, transparent);
 }
 @utility shimmer-overlay {
   position: absolute;
@@ -211,7 +380,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    color-mix(in oklab, var(--color-foreground) 8%, transparent) 50%,
+    color-mix(in oklab, var(--foreground) 8%, transparent) 50%,
     transparent 100%
   );
   animation: shimmer-slide 1.6s ease-in-out infinite;
@@ -220,11 +389,56 @@
   100% { transform: translateX(100%); }
 }
 
+/* MD3 entrance animations */
 @keyframes float-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 @utility animate-float-in {
-  animation: float-in 320ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation: float-in 380ms var(--ease-emphasized-decel) both;
 }
 
+@keyframes fade-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@utility animate-fade-scale {
+  animation: fade-scale-in 320ms var(--ease-emphasized-decel) both;
+}
+
+/* Ripple burst */
+@keyframes md-ripple {
+  from { transform: scale(0); opacity: 0.35; }
+  to   { transform: scale(3); opacity: 0; }
+}
+@utility md-ripple-child {
+  position: absolute;
+  border-radius: 9999px;
+  background-color: currentColor;
+  pointer-events: none;
+  animation: md-ripple 600ms var(--ease-emphasized) both;
+}
+
+/* Vinyl spinning animation (now playing) */
+@keyframes vinyl-spin {
+  to { transform: rotate(360deg); }
+}
+@utility animate-vinyl {
+  animation: vinyl-spin 24s linear infinite;
+}
+
+/* Playing bars equalizer visual */
+@keyframes eq-bar {
+  0%, 100% { transform: scaleY(0.35); }
+  50%      { transform: scaleY(1); }
+}
+@utility eq-bar {
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  margin-inline: 1px;
+  background-color: currentColor;
+  border-radius: 2px;
+  transform-origin: bottom;
+  animation: eq-bar 900ms ease-in-out infinite;
+}
