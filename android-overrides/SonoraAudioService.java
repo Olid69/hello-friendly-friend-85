@@ -540,7 +540,10 @@ public class SonoraAudioService extends Service {
       }
 
       @Override public void onIsPlayingChanged(boolean isPlaying) {
-        lastIsPlaying = isPlaying;
+        boolean isBufferingToResume = exoPlayer != null
+          && exoPlayer.getPlaybackState() == Player.STATE_BUFFERING
+          && playWhenPrepared;
+        lastIsPlaying = isPlaying || isBufferingToResume;
         if (isPlaying) {
           playWhenPrepared = true;
           acquireWakeLock();
@@ -549,7 +552,12 @@ public class SonoraAudioService extends Service {
         }
         updateMediaSession();
         refreshNotification();
-        MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, isPlaying ? "play" : "pause");
+        MainActivity.dispatchNativeState(
+          lastIsPlaying,
+          lastPositionMs,
+          lastDurationMs,
+          isBufferingToResume ? "buffering" : (isPlaying ? "play" : "pause")
+        );
       }
 
       @Override public void onPlayerError(PlaybackException error) {
@@ -672,7 +680,8 @@ public class SonoraAudioService extends Service {
       long d = exoPlayer.getDuration();
       if (pos != C.TIME_UNSET) lastPositionMs = Math.max(0, pos);
       if (d != C.TIME_UNSET && d > 0) lastDurationMs = d;
-      lastIsPlaying = exoPlayer.isPlaying();
+      boolean isBufferingToResume = exoPlayer.getPlaybackState() == Player.STATE_BUFFERING && playWhenPrepared;
+      lastIsPlaying = exoPlayer.isPlaying() || isBufferingToResume;
     } catch (Exception ignored) {}
   }
 
