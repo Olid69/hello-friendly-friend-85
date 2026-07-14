@@ -21,6 +21,24 @@ function fmt(sec: number) {
 
 function PlayerPage() {
   const router = useRouter();
+  const navigate = useNavigate();
+  const handleClose = () => {
+    // Robust dismiss: try history back, fall back to home if we opened deep-linked.
+    const canGoBack =
+      typeof window !== "undefined" && window.history.length > 1;
+    if (canGoBack) {
+      router.history.back();
+      // Safety net: if the pop didn't happen (e.g. fresh entry), navigate home.
+      window.setTimeout(() => {
+        if (window.location.pathname === "/player") {
+          navigate({ to: "/" });
+        }
+      }, 250);
+    } else {
+      navigate({ to: "/" });
+    }
+  };
+
   const {
     current,
     isPlaying,
