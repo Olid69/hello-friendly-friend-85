@@ -79,9 +79,10 @@ function isNativeAndroidPlayback() {
   return /Android/i.test(navigator.userAgent) && /; wv\)/i.test(navigator.userAgent);
 }
 
-function getYouTubeAudioProxyUrl(track: UnifiedTrack) {
+function getYouTubeAudioProxyUrl(track: UnifiedTrack, fullDownload = false) {
   const videoId = track.id.replace(/^youtube:/, "");
-  return `/api/public/youtube-audio?videoId=${encodeURIComponent(videoId)}`;
+  const suffix = fullDownload ? "&download=1" : "";
+  return `/api/public/youtube-audio?videoId=${encodeURIComponent(videoId)}${suffix}`;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -304,7 +305,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           const media = audioRef.current;
           if (!media) return;
           setEngine("audio");
-          media.src = getYouTubeAudioProxyUrl(current);
+          // On native Android, use the full-download route so the whole audio
+          // buffers as a single 200 response — avoids Piped signed-URL range
+          // expiry that causes silence after ~1 minute of playback.
+          media.src = getYouTubeAudioProxyUrl(current, true);
           try {
             await media.play();
             if (!cancelled) {
