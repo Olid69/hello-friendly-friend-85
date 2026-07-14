@@ -250,6 +250,54 @@ function HomePage() {
                 </Button>
               }
             >
+              <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/60 bg-card/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap gap-2">
+                  {(["all", "bollywood", "hollywood"] as const).map((f) => (
+                    <Button
+                      key={f}
+                      size="sm"
+                      variant={ytFilter === f ? "default" : "outline"}
+                      onClick={() => setYtFilter(f)}
+                      className="h-8 rounded-full capitalize"
+                    >
+                      {f === "all" ? "All" : f === "bollywood" ? "Bollywood" : "Hollywood"}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">Year</span>
+                  <select
+                    aria-label="Year from"
+                    className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+                    value={yearFrom}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setYearFrom(v);
+                      if (v > yearTo) setYearTo(v);
+                    }}
+                  >
+                    {Array.from({ length: CURRENT_YEAR - MIN_YEAR + 1 }, (_, i) => CURRENT_YEAR - i).map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                  <span className="text-muted-foreground">–</span>
+                  <select
+                    aria-label="Year to"
+                    className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+                    value={yearTo}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setYearTo(v);
+                      if (v < yearFrom) setYearFrom(v);
+                    }}
+                  >
+                    {Array.from({ length: CURRENT_YEAR - MIN_YEAR + 1 }, (_, i) => CURRENT_YEAR - i).map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               {youtubeQuery.isLoading && youtubeTracks.length === 0 ? (
                 <GridSkeleton />
               ) : youtubeQuery.isError && youtubeTracks.length === 0 ? (
