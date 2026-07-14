@@ -37,11 +37,14 @@ export const homeFeed = createServerFn({ method: "GET" }).handler(async () => {
   return { youtube, jamendo, audius, deezer };
 });
 
-export const youtubeTrending = createServerFn({ method: "GET" }).handler(async () => {
-  let tracks = await latestBollywoodHollywood(20);
-  if (!tracks.length) tracks = await trendingPiped(16);
-  return { tracks };
-});
+export const youtubeTrending = createServerFn({ method: "GET" })
+  .inputValidator((d: { filter?: "all" | "bollywood" | "hollywood"; yearFrom?: number; yearTo?: number } = {}) => d)
+  .handler(async ({ data }) => {
+    const filter = data?.filter ?? "all";
+    let tracks = await latestBollywoodHollywood(20, filter, data?.yearFrom, data?.yearTo);
+    if (!tracks.length) tracks = await trendingPiped(16);
+    return { tracks };
+  });
 
 export const resolveYoutubeStream = createServerFn({ method: "GET" })
   .inputValidator((d: { videoId: string }) => d)
