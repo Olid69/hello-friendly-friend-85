@@ -690,6 +690,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   };
 
   const togglePlay = () => {
+    // Restored session: no engine yet — kick off a real load on user gesture.
+    if (current && playbackEngineRef.current === null) {
+      setRestoredProgress(null);
+      setPlayRequestId((id) => id + 1);
+      setIsPlaying(true);
+      return;
+    }
     if (playbackEngineRef.current === "native") {
       if (!current) return;
       if (isPlaying) {
