@@ -348,15 +348,15 @@ export function TrackCard({
   return (
     <div
       onClick={() => playTrack(track, queue)}
-      className="group relative flex cursor-pointer flex-col gap-2 rounded-lg bg-card p-3 text-left transition-colors hover:bg-card/70"
+      className="group relative flex cursor-pointer flex-col gap-2 rounded-xl bg-card/70 p-3 text-left ring-1 ring-transparent transition-all duration-200 hover:-translate-y-0.5 hover:bg-card hover:ring-border hover:shadow-[0_10px_30px_-15px_rgba(0,0,0,0.6)]"
     >
-      <div className="relative aspect-square overflow-hidden rounded-md bg-muted">
+      <div className="relative aspect-square overflow-hidden rounded-lg bg-muted shadow-md">
         {track.artwork ? (
           <img
             src={track.artwork}
             alt=""
             loading="lazy"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-muted-foreground">
@@ -371,7 +371,7 @@ export function TrackCard({
         >
           {track.source}
         </span>
-        <span className="absolute bottom-2 right-2 flex h-10 w-10 translate-y-2 items-center justify-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-lg transition-all group-hover:translate-y-0 group-hover:opacity-100">
+        <span className="absolute bottom-2 right-2 flex h-10 w-10 translate-y-2 items-center justify-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-lg transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
           <Play className="h-4 w-4 fill-current" />
         </span>
       </div>
@@ -379,7 +379,7 @@ export function TrackCard({
         <div className="min-w-0 flex-1">
           <p
             className={cn(
-              "truncate text-sm font-medium",
+              "truncate text-sm font-semibold",
               active && isPlaying && "text-primary",
             )}
           >
@@ -392,6 +392,7 @@ export function TrackCard({
     </div>
   );
 }
+
 
 export function TrackGrid({ tracks }: { tracks: UnifiedTrack[] }) {
   if (tracks.length === 0) {
