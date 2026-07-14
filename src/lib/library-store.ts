@@ -39,7 +39,12 @@ function write<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
-    window.dispatchEvent(new CustomEvent("sonora:store", { detail: key }));
+    // Defer dispatch so subscribers don't setState during another component's render.
+    queueMicrotask(() => {
+      try {
+        window.dispatchEvent(new CustomEvent("sonora:store", { detail: key }));
+      } catch {}
+    });
   } catch {}
 }
 
