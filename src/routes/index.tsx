@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { TrendingUp, Radio, Sparkles, Youtube, RefreshCw, AlertCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { homeFeed, youtubeTrending } from "@/lib/music-sources.functions";
 import { TrackGrid } from "@/components/track-card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -70,6 +70,9 @@ function Section({
 }
 
 const PULL_THRESHOLD = 70;
+const YT_CACHE_KEY = "sonora:yt-trending:v1";
+
+type YoutubeTrendingResult = Awaited<ReturnType<typeof youtubeTrending>>;
 
 function HomePage() {
   const [greeting, setGreeting] = useState("Welcome back");
@@ -87,8 +90,47 @@ function HomePage() {
     queryKey: ["youtube-trending"],
     queryFn: () => youtubeTrending(),
     staleTime: 5 * 60_000,
-    initialData: data?.youtube ? { tracks: data.youtube } : undefined,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
+    initialData: () => {
+      if (typeof window === "undefined") return undefined;
+      try {
+        const raw = localStorage.getItem(YT_CACHE_KEY);
+        if (!raw) return undefined;
+        const parsed = JSON.parse(raw) as { tracks?: YoutubeTrendingResult["tracks"]; savedAt?: number };
+        if (!parsed?.tracks?.length) return undefined;
+        return { tracks: parsed.tracks } satisfies YoutubeTrendingResult;
+      } catch {
+        return undefined;
+      }
+    },
+    initialDataUpdatedAt: () => {
+      if (typeof window === "undefined") return 0;
+      try {
+        const raw = localStorage.getItem(YT_CACHE_KEY);
+        if (!raw) return 0;
+        const parsed = JSON.parse(raw) as { savedAt: number };
+        return typeof parsed?.savedAt === "number" ? parsed.savedAt : 0;
+      } catch {
+        return 0;
+      }
+    },
   });
+
+  // Persist YouTube trending to localStorage for fast next-load
+  useEffect(() => {
+    if (!youtubeQuery.data?.tracks?.length) return;
+    if (youtubeQuery.isFetching) return;
+    try {
+      localStorage.setItem(
+        YT_CACHE_KEY,
+        JSON.stringify({ tracks: youtubeQuery.data.tracks, savedAt: Date.now() }),
+      );
+    } catch {
+      // ignore quota errors
+    }
+  }, [youtubeQuery.data, youtubeQuery.isFetching]);
 
   const youtubeTracks = youtubeQuery.data?.tracks ?? data?.youtube ?? [];
 
