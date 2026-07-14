@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
   chartDeezer,
+  latestBollywoodHollywood,
   popularJamendo,
   resolvePipedStream,
   searchAudius,
@@ -28,7 +29,7 @@ export const unifiedSearch = createServerFn({ method: "GET" })
 
 export const homeFeed = createServerFn({ method: "GET" }).handler(async () => {
   const [youtube, jamendo, audius, deezer] = await Promise.all([
-    trendingPiped(12),
+    latestBollywoodHollywood(16),
     popularJamendo(12),
     trendingAudius(12),
     chartDeezer(12),
@@ -37,7 +38,9 @@ export const homeFeed = createServerFn({ method: "GET" }).handler(async () => {
 });
 
 export const youtubeTrending = createServerFn({ method: "GET" }).handler(async () => {
-  return { tracks: await trendingPiped(12) };
+  let tracks = await latestBollywoodHollywood(20);
+  if (!tracks.length) tracks = await trendingPiped(16);
+  return { tracks };
 });
 
 export const resolveYoutubeStream = createServerFn({ method: "GET" })
