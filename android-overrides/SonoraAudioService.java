@@ -112,7 +112,22 @@ public class SonoraAudioService extends Service {
 
     acquireWakeLock();
     updateMediaSession();
-    startForeground(NOTIFICATION_ID, buildNotification());
+    // Android 14+ (API 34) requires an explicit foregroundServiceType on
+    // startForeground() or the OS kills the service after a short while —
+    // this is why playback was stopping in the background.
+    try {
+      if (Build.VERSION.SDK_INT >= 34) {
+        startForeground(
+          NOTIFICATION_ID,
+          buildNotification(),
+          android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+        );
+      } else {
+        startForeground(NOTIFICATION_ID, buildNotification());
+      }
+    } catch (Exception e) {
+      startForeground(NOTIFICATION_ID, buildNotification());
+    }
     return START_STICKY;
   }
 
