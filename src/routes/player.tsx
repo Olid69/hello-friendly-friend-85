@@ -1,5 +1,6 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router";
 import { ChevronDown, Heart, Pause, Play, SkipBack, SkipForward, Music2, Shuffle, Repeat, Repeat1, Mic2, ListMusic } from "lucide-react";
+
 import { Link } from "@tanstack/react-router";
 import { usePlayer } from "@/lib/player-context";
 import { useLiked } from "@/lib/library-store";
