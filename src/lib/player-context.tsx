@@ -79,9 +79,10 @@ function isNativeAndroidPlayback() {
   return /Android/i.test(navigator.userAgent) && /; wv\)/i.test(navigator.userAgent);
 }
 
-function getYouTubeAudioProxyUrl(track: UnifiedTrack) {
+function getYouTubeAudioProxyUrl(track: UnifiedTrack, fullDownload = false) {
   const videoId = track.id.replace(/^youtube:/, "");
-  return `/api/public/youtube-audio?videoId=${encodeURIComponent(videoId)}`;
+  const suffix = fullDownload ? "&download=1" : "";
+  return `/api/public/youtube-audio?videoId=${encodeURIComponent(videoId)}${suffix}`;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
