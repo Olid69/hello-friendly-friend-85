@@ -18,7 +18,7 @@ import { AuthProvider } from "../lib/auth-context";
 import { I18nProvider } from "../lib/i18n";
 import { OfflineBanner } from "../components/offline-banner";
 import { supabase } from "../integrations/supabase/client";
-import { cleanOAuthParamsFromCurrentUrl, completeOAuthSessionFromUrl, hasOAuthParams } from "../lib/oauth-session";
+
 
 function NotFoundComponent() {
   return (
