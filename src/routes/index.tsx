@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TrendingUp, Radio, Sparkles } from "lucide-react";
+import { TrendingUp, Radio, Sparkles, Youtube } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { homeFeed } from "@/lib/music-sources.functions";
@@ -103,6 +103,9 @@ function HomePage() {
 
         {data && (
           <>
+            <Section icon={<Youtube className="h-4 w-4" />} title="Popular on YouTube">
+              <TrackGrid tracks={data.youtube} />
+            </Section>
             <Section icon={<TrendingUp className="h-4 w-4" />} title="Popular on Jamendo">
               <TrackGrid tracks={data.jamendo} />
             </Section>
