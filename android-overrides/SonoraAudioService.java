@@ -11,11 +11,17 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.media.MediaMetadata;
+import android.media.MediaPlayer;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
+import android.net.wifi.WifiManager;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.text.TextUtils;
 
@@ -31,24 +37,26 @@ import java.util.concurrent.Executors;
  * Owns:
  *  - MediaSession (lock-screen + hardware / BT media button controls)
  *  - MediaStyle notification with prev / play-pause / next / stop
- *  - Partial wake lock so the OS doesn't suspend the WebView audio pipeline
+ *  - Native MediaPlayer playback so Android keeps audio alive when the WebView
+ *    is backgrounded or the screen is off
+ *  - Partial wake lock + Wi-Fi lock so streamed media continues in doze
  *  - A local BroadcastReceiver that forwards notification button taps back to JS
  *    via MainActivity.dispatchMediaAction().
  *
- * Nothing in here decodes or drives audio itself — the HTML5 audio element inside
- * the WebView remains the source of truth. This service only mirrors state to the
- * OS so background playback + system controls behave correctly.
  */
 public class SonoraAudioService extends Service {
   public static final String ACTION_START = "app.sonora.personal.audio.START";
   public static final String ACTION_STOP = "app.sonora.personal.audio.STOP";
+  public static final String ACTION_CONTROL = "app.sonora.personal.audio.CONTROL";
 
+  public static final String EXTRA_STREAM_URL = "streamUrl";
   public static final String EXTRA_TITLE = "title";
   public static final String EXTRA_ARTIST = "artist";
   public static final String EXTRA_ARTWORK = "artwork";
   public static final String EXTRA_IS_PLAYING = "isPlaying";
   public static final String EXTRA_POSITION_MS = "positionMs";
   public static final String EXTRA_DURATION_MS = "durationMs";
+  public static final String EXTRA_CONTROL = "control";
 
   // Notification button broadcast actions.
   static final String BTN_PLAY_PAUSE = "app.sonora.personal.audio.PLAY_PAUSE";
@@ -60,21 +68,42 @@ public class SonoraAudioService extends Service {
   private static final int NOTIFICATION_ID = 7001;
 
   private PowerManager.WakeLock wakeLock;
+  private WifiManager.WifiLock wifiLock;
   private MediaSession mediaSession;
+  private MediaPlayer mediaPlayer;
   private ButtonReceiver receiver;
   private ExecutorService artworkExecutor;
+  private Handler handler;
+  private final AudioManager.OnAudioFocusChangeListener audioFocusListener = focusChange -> {
+    if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
+      focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+      pauseNativePlayback(true);
+    }
+  };
 
+  private String lastStreamUrl;
   private String lastTitle;
   private String lastArtist;
   private String lastArtworkUrl;
   private Bitmap lastArtworkBitmap;
   private boolean lastIsPlaying = true;
+  private boolean isPrepared = false;
+  private boolean playWhenPrepared = false;
   private long lastPositionMs = 0;
   private long lastDurationMs = 0;
+
+  private final Runnable progressRunnable = new Runnable() {
+    @Override public void run() {
+      syncPlayerPosition();
+      MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, "progress");
+      if (handler != null && mediaPlayer != null) handler.postDelayed(this, 1000);
+    }
+  };
 
   @Override
   public void onCreate() {
     super.onCreate();
+    handler = new Handler(Looper.getMainLooper());
     createChannel();
     setupMediaSession();
     registerButtonReceiver();
@@ -84,12 +113,19 @@ public class SonoraAudioService extends Service {
   @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
     if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+      stopNativePlayback();
       stopForeground(true);
       stopSelf();
       return START_NOT_STICKY;
     }
 
+    if (intent != null && ACTION_CONTROL.equals(intent.getAction())) {
+      handlePlaybackControl(intent.getStringExtra(EXTRA_CONTROL), intent.getLongExtra(EXTRA_POSITION_MS, 0));
+      return START_STICKY;
+    }
+
     if (intent != null) {
+      String streamUrl = intent.getStringExtra(EXTRA_STREAM_URL);
       String title = intent.getStringExtra(EXTRA_TITLE);
       String artist = intent.getStringExtra(EXTRA_ARTIST);
       String artwork = intent.getStringExtra(EXTRA_ARTWORK);
@@ -100,6 +136,7 @@ public class SonoraAudioService extends Service {
       if (title != null) lastTitle = title;
       if (artist != null) lastArtist = artist;
       lastIsPlaying = isPlaying;
+      playWhenPrepared = isPlaying;
       lastPositionMs = position;
       lastDurationMs = duration;
 
@@ -107,6 +144,14 @@ public class SonoraAudioService extends Service {
       if (artworkChanged) {
         lastArtworkUrl = artwork;
         loadArtworkAsync(artwork);
+      }
+
+      if (streamUrl != null && streamUrl.length() > 0) {
+        if (!TextUtils.equals(streamUrl, lastStreamUrl)) {
+          prepareNativePlayer(streamUrl);
+        } else {
+          applyDesiredPlaybackState();
+        }
       }
     }
 
@@ -133,7 +178,11 @@ public class SonoraAudioService extends Service {
 
   @Override
   public void onDestroy() {
+    if (handler != null) handler.removeCallbacks(progressRunnable);
+    releaseNativePlayer();
     releaseWakeLock();
+    releaseWifiLock();
+    abandonAudioFocus();
     if (receiver != null) {
       try { unregisterReceiver(receiver); } catch (Exception ignored) {}
       receiver = null;
@@ -180,17 +229,15 @@ public class SonoraAudioService extends Service {
       MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS
     );
     mediaSession.setCallback(new MediaSession.Callback() {
-      @Override public void onPlay() { MainActivity.dispatchMediaAction("play"); }
-      @Override public void onPause() { MainActivity.dispatchMediaAction("pause"); }
+      @Override public void onPlay() { handlePlaybackControl("play", 0); }
+      @Override public void onPause() { handlePlaybackControl("pause", 0); }
       @Override public void onSkipToNext() { MainActivity.dispatchMediaAction("next"); }
       @Override public void onSkipToPrevious() { MainActivity.dispatchMediaAction("prev"); }
       @Override public void onStop() {
-        MainActivity.dispatchMediaAction("stop");
-        stopForeground(true);
-        stopSelf();
+        handlePlaybackControl("stop", 0);
       }
       @Override public void onSeekTo(long pos) {
-        MainActivity.dispatchMediaAction("seek:" + pos);
+        handlePlaybackControl("seek", pos);
       }
     });
     mediaSession.setActive(true);
@@ -198,6 +245,7 @@ public class SonoraAudioService extends Service {
 
   private void updateMediaSession() {
     if (mediaSession == null) return;
+    syncPlayerPosition();
 
     MediaMetadata.Builder meta = new MediaMetadata.Builder()
       .putString(MediaMetadata.METADATA_KEY_TITLE, safe(lastTitle, "Sonora"))
@@ -348,7 +396,7 @@ public class SonoraAudioService extends Service {
       if (intent == null || intent.getAction() == null) return;
       switch (intent.getAction()) {
         case BTN_PLAY_PAUSE:
-          MainActivity.dispatchMediaAction(lastIsPlaying ? "pause" : "play");
+          handlePlaybackControl(lastIsPlaying ? "pause" : "play", 0);
           break;
         case BTN_NEXT:
           MainActivity.dispatchMediaAction("next");
@@ -357,12 +405,198 @@ public class SonoraAudioService extends Service {
           MainActivity.dispatchMediaAction("prev");
           break;
         case BTN_STOP:
-          MainActivity.dispatchMediaAction("stop");
-          stopForeground(true);
-          stopSelf();
+          handlePlaybackControl("stop", 0);
           break;
       }
     }
+  }
+
+  // --------------------------------------------------------- Native playback
+
+  private void prepareNativePlayer(String streamUrl) {
+    releaseNativePlayer();
+    lastStreamUrl = streamUrl;
+    isPrepared = false;
+    requestAudioFocus();
+    acquireWakeLock();
+    acquireWifiLock();
+
+    MediaPlayer player = new MediaPlayer();
+    mediaPlayer = player;
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        player.setAudioAttributes(new AudioAttributes.Builder()
+          .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+          .setUsage(AudioAttributes.USAGE_MEDIA)
+          .build());
+      } else {
+        player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+      }
+      player.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
+      player.setDataSource(streamUrl);
+      player.setOnPreparedListener(mp -> {
+        isPrepared = true;
+        int d = mp.getDuration();
+        if (d > 0) lastDurationMs = d;
+        if (lastPositionMs > 0 && (lastDurationMs <= 0 || lastPositionMs < lastDurationMs)) {
+          try { mp.seekTo((int) lastPositionMs); } catch (Exception ignored) {}
+        }
+        if (playWhenPrepared) startPreparedPlayer();
+        updateMediaSession();
+        refreshNotification();
+        MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, "ready");
+      });
+      player.setOnCompletionListener(mp -> {
+        lastIsPlaying = false;
+        syncPlayerPosition();
+        updateMediaSession();
+        refreshNotification();
+        MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "ended");
+        MainActivity.dispatchMediaAction("ended");
+      });
+      player.setOnErrorListener((mp, what, extra) -> {
+        lastIsPlaying = false;
+        updateMediaSession();
+        refreshNotification();
+        MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "error");
+        return true;
+      });
+      player.prepareAsync();
+    } catch (Exception e) {
+      lastIsPlaying = false;
+      MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "error");
+      releaseNativePlayer();
+    }
+  }
+
+  private void startPreparedPlayer() {
+    if (mediaPlayer == null || !isPrepared) return;
+    try {
+      requestAudioFocus();
+      mediaPlayer.start();
+      lastIsPlaying = true;
+      startProgressUpdates();
+    } catch (Exception e) {
+      lastIsPlaying = false;
+      MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "error");
+    }
+  }
+
+  private void pauseNativePlayback(boolean notifyJs) {
+    playWhenPrepared = false;
+    if (mediaPlayer != null && isPrepared) {
+      try { if (mediaPlayer.isPlaying()) mediaPlayer.pause(); } catch (Exception ignored) {}
+    }
+    syncPlayerPosition();
+    lastIsPlaying = false;
+    stopProgressUpdates();
+    updateMediaSession();
+    refreshNotification();
+    if (notifyJs) MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "pause");
+  }
+
+  private void applyDesiredPlaybackState() {
+    if (lastIsPlaying) {
+      playWhenPrepared = true;
+      if (isPrepared) startPreparedPlayer();
+    } else {
+      pauseNativePlayback(false);
+    }
+  }
+
+  private void handlePlaybackControl(String action, long positionMs) {
+    if (action == null) return;
+    switch (action) {
+      case "play":
+        playWhenPrepared = true;
+        if (isPrepared) startPreparedPlayer();
+        updateMediaSession();
+        refreshNotification();
+        MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, "play");
+        break;
+      case "pause":
+        pauseNativePlayback(true);
+        break;
+      case "seek":
+        if (mediaPlayer != null && isPrepared) {
+          try {
+            mediaPlayer.seekTo((int) Math.max(0, positionMs));
+            lastPositionMs = Math.max(0, positionMs);
+          } catch (Exception ignored) {}
+        }
+        updateMediaSession();
+        refreshNotification();
+        MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, "seek");
+        break;
+      case "stop":
+        stopNativePlayback();
+        MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "stop");
+        stopForeground(true);
+        stopSelf();
+        break;
+    }
+  }
+
+  private void stopNativePlayback() {
+    playWhenPrepared = false;
+    lastIsPlaying = false;
+    stopProgressUpdates();
+    releaseNativePlayer();
+    releaseWakeLock();
+    releaseWifiLock();
+    abandonAudioFocus();
+    updateMediaSession();
+  }
+
+  private void releaseNativePlayer() {
+    stopProgressUpdates();
+    if (mediaPlayer != null) {
+      try { mediaPlayer.reset(); } catch (Exception ignored) {}
+      try { mediaPlayer.release(); } catch (Exception ignored) {}
+      mediaPlayer = null;
+    }
+    isPrepared = false;
+  }
+
+  private void syncPlayerPosition() {
+    if (mediaPlayer == null || !isPrepared) return;
+    try {
+      lastPositionMs = Math.max(0, mediaPlayer.getCurrentPosition());
+      int d = mediaPlayer.getDuration();
+      if (d > 0) lastDurationMs = d;
+      lastIsPlaying = mediaPlayer.isPlaying();
+    } catch (Exception ignored) {}
+  }
+
+  private void startProgressUpdates() {
+    if (handler == null) return;
+    handler.removeCallbacks(progressRunnable);
+    handler.post(progressRunnable);
+  }
+
+  private void stopProgressUpdates() {
+    if (handler != null) handler.removeCallbacks(progressRunnable);
+  }
+
+  private void refreshNotification() {
+    NotificationManager mgr = getSystemService(NotificationManager.class);
+    if (mgr != null) {
+      try { mgr.notify(NOTIFICATION_ID, buildNotification()); } catch (Exception ignored) {}
+    }
+  }
+
+  private void requestAudioFocus() {
+    AudioManager manager = (AudioManager) getSystemService(AUDIO_SERVICE);
+    if (manager == null) return;
+    try {
+      manager.requestAudioFocus(audioFocusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+    } catch (Exception ignored) {}
+  }
+
+  private void abandonAudioFocus() {
+    AudioManager manager = (AudioManager) getSystemService(AUDIO_SERVICE);
+    if (manager == null) return;
+    try { manager.abandonAudioFocus(audioFocusListener); } catch (Exception ignored) {}
   }
 
   // ---------------------------------------------------------------- Wakelock
@@ -376,10 +610,25 @@ public class SonoraAudioService extends Service {
     wakeLock.acquire(12 * 60 * 60 * 1000L);
   }
 
+  private void acquireWifiLock() {
+    if (wifiLock != null && wifiLock.isHeld()) return;
+    WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+    if (wm == null) return;
+    wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Sonora:PlaybackWifiLock");
+    wifiLock.setReferenceCounted(false);
+    try { wifiLock.acquire(); } catch (Exception ignored) {}
+  }
+
   private void releaseWakeLock() {
     if (wakeLock == null || !wakeLock.isHeld()) return;
     wakeLock.release();
     wakeLock = null;
+  }
+
+  private void releaseWifiLock() {
+    if (wifiLock == null) return;
+    try { if (wifiLock.isHeld()) wifiLock.release(); } catch (Exception ignored) {}
+    wifiLock = null;
   }
 
   private static String safe(String value, String fallback) {

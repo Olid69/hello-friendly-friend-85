@@ -134,7 +134,55 @@ public class MainActivity extends BridgeActivity {
     ));
   }
 
+  public static void dispatchNativeState(final boolean isPlaying, final long positionMs,
+                                         final long durationMs, final String status) {
+    final MainActivity a = instance;
+    if (a == null || a.getBridge() == null || a.getBridge().getWebView() == null) return;
+    final WebView wv = a.getBridge().getWebView();
+    final String safeStatus = status == null ? "" : status.replace("\\", "\\\\").replace("'", "\\'");
+    final String script =
+      "window.dispatchEvent(new CustomEvent('sonora:native-state',{detail:{" +
+        "isPlaying:" + isPlaying + "," +
+        "positionMs:" + positionMs + "," +
+        "durationMs:" + durationMs + "," +
+        "status:'" + safeStatus + "'" +
+      "}}))";
+    wv.post(() -> wv.evaluateJavascript(script, null));
+  }
+
+  private void startPlaybackService(Intent intent) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      startForegroundService(intent);
+    } else {
+      startService(intent);
+    }
+  }
+
   public class SonoraNativeAudioBridge {
+    @JavascriptInterface
+    public void play(String streamUrl, String title, String artist, String artwork,
+                     boolean isPlaying, double positionMs, double durationMs) {
+      Intent intent = new Intent(MainActivity.this, SonoraAudioService.class);
+      intent.setAction(SonoraAudioService.ACTION_START);
+      intent.putExtra(SonoraAudioService.EXTRA_STREAM_URL, streamUrl == null ? "" : streamUrl);
+      intent.putExtra(SonoraAudioService.EXTRA_TITLE, title == null ? "Sonora" : title);
+      intent.putExtra(SonoraAudioService.EXTRA_ARTIST, artist == null ? "Playing" : artist);
+      if (artwork != null) intent.putExtra(SonoraAudioService.EXTRA_ARTWORK, artwork);
+      intent.putExtra(SonoraAudioService.EXTRA_IS_PLAYING, isPlaying);
+      intent.putExtra(SonoraAudioService.EXTRA_POSITION_MS, (long) positionMs);
+      intent.putExtra(SonoraAudioService.EXTRA_DURATION_MS, (long) durationMs);
+      startPlaybackService(intent);
+    }
+
+    @JavascriptInterface
+    public void control(String action, double positionMs) {
+      Intent intent = new Intent(MainActivity.this, SonoraAudioService.class);
+      intent.setAction(SonoraAudioService.ACTION_CONTROL);
+      intent.putExtra(SonoraAudioService.EXTRA_CONTROL, action == null ? "" : action);
+      intent.putExtra(SonoraAudioService.EXTRA_POSITION_MS, (long) positionMs);
+      startService(intent);
+    }
+
     @JavascriptInterface
     public void start(String title, String artist, String artwork,
                       boolean isPlaying, double positionMs, double durationMs) {
@@ -146,11 +194,7 @@ public class MainActivity extends BridgeActivity {
       intent.putExtra(SonoraAudioService.EXTRA_IS_PLAYING, isPlaying);
       intent.putExtra(SonoraAudioService.EXTRA_POSITION_MS, (long) positionMs);
       intent.putExtra(SonoraAudioService.EXTRA_DURATION_MS, (long) durationMs);
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        startForegroundService(intent);
-      } else {
-        startService(intent);
-      }
+      startPlaybackService(intent);
     }
 
     // Back-compat overload for any older JS callers.

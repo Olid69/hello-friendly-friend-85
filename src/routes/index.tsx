@@ -80,6 +80,7 @@ type YoutubeTrendingResult = Awaited<ReturnType<typeof youtubeTrending>>;
 function HomePage() {
   const [greeting, setGreeting] = useState("Welcome back");
   const [mounted, setMounted] = useState(false);
+  const [cachedYoutubeTracks, setCachedYoutubeTracks] = useState<YoutubeTrendingResult["tracks"]>([]);
   useEffect(() => {
     setGreeting(getGreeting());
     setMounted(true);
@@ -104,30 +105,22 @@ function HomePage() {
     gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
-    initialData: () => {
-      if (typeof window === "undefined") return undefined;
-      try {
-        const raw = localStorage.getItem(ytCacheKey);
-        if (!raw) return undefined;
-        const parsed = JSON.parse(raw) as { tracks?: YoutubeTrendingResult["tracks"]; savedAt?: number };
-        if (!parsed?.tracks?.length) return undefined;
-        return { tracks: parsed.tracks } satisfies YoutubeTrendingResult;
-      } catch {
-        return undefined;
-      }
-    },
-    initialDataUpdatedAt: () => {
-      if (typeof window === "undefined") return 0;
-      try {
-        const raw = localStorage.getItem(ytCacheKey);
-        if (!raw) return 0;
-        const parsed = JSON.parse(raw) as { savedAt: number };
-        return typeof parsed?.savedAt === "number" ? parsed.savedAt : 0;
-      } catch {
-        return 0;
-      }
-    },
   });
+
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      const raw = localStorage.getItem(ytCacheKey);
+      if (!raw) {
+        setCachedYoutubeTracks([]);
+        return;
+      }
+      const parsed = JSON.parse(raw) as { tracks?: YoutubeTrendingResult["tracks"] };
+      setCachedYoutubeTracks(parsed?.tracks?.length ? parsed.tracks : []);
+    } catch {
+      setCachedYoutubeTracks([]);
+    }
+  }, [mounted, ytCacheKey]);
 
   useEffect(() => {
     if (!youtubeQuery.data?.tracks?.length) return;
@@ -142,7 +135,7 @@ function HomePage() {
     }
   }, [youtubeQuery.data, youtubeQuery.isFetching, ytCacheKey]);
 
-  const youtubeTracks = youtubeQuery.data?.tracks ?? [];
+  const youtubeTracks = youtubeQuery.data?.tracks ?? cachedYoutubeTracks;
 
   // Pull-to-refresh — only when scrolled to top and touch device
   const [pull, setPull] = useState(0);

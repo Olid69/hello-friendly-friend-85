@@ -26,7 +26,7 @@ export type UnifiedTrack = {
 };
 
 export type RepeatMode = "off" | "all" | "one";
-type PlaybackEngine = "audio" | "video" | "youtube" | null;
+type PlaybackEngine = "audio" | "video" | "youtube" | "native" | null;
 
 type PlayerContextValue = {
   audioRef: React.RefObject<HTMLAudioElement | null>;
@@ -58,6 +58,16 @@ declare global {
     YT?: any;
     onYouTubeIframeAPIReady?: () => void;
     SonoraNativeAudio?: {
+      play?: (
+        streamUrl: string,
+        title: string,
+        artist: string,
+        artwork?: string,
+        isPlaying?: boolean,
+        positionMs?: number,
+        durationMs?: number,
+      ) => void;
+      control?: (action: string, positionMs?: number) => void;
       start?: (
         title: string,
         artist: string,
@@ -83,6 +93,15 @@ function getYouTubeAudioProxyUrl(track: UnifiedTrack, fullDownload = false) {
   const videoId = track.id.replace(/^youtube:/, "");
   const suffix = fullDownload ? "&download=1" : "";
   return `/api/public/youtube-audio?videoId=${encodeURIComponent(videoId)}${suffix}`;
+}
+
+function toAbsoluteUrl(url: string) {
+  if (typeof window === "undefined") return url;
+  try {
+    return new URL(url, window.location.origin).toString();
+  } catch {
+    return url;
+  }
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -147,6 +166,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (repeat === "one" && media) {
       media.currentTime = 0;
       media.play().catch(() => {});
+    } else if (repeat === "one" && playbackEngineRef.current === "native") {
+      window.SonoraNativeAudio?.control?.("seek", 0);
+      window.SonoraNativeAudio?.control?.("play", 0);
     } else if (repeat === "one" && playbackEngineRef.current === "youtube") {
       youtubePlayerRef.current?.seekTo?.(0, true);
       youtubePlayerRef.current?.playVideo?.();
@@ -266,9 +288,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setProgress(0);
       setDuration(current.duration || 0);
       revokeLocalObjectUrl();
+      const previousEngine = playbackEngineRef.current;
       setEngine(null);
       resetMedia(audioRef.current);
       resetMedia(videoRef.current);
+      if (previousEngine === "native") {
+        window.SonoraNativeAudio?.stop?.();
+      }
 
       // Try local download first for any source.
       let localUrl: string | null = null;
@@ -300,17 +326,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
       if (current.source === "youtube") {
         const videoId = current.id.replace(/^youtube:/, "");
-        if (isNativeAndroidPlayback()) {
+        if (isNativeAndroidPlayback() && window.SonoraNativeAudio?.play) {
           youtubePlayerRef.current?.stopVideo?.();
-          const media = audioRef.current;
-          if (!media) return;
-          setEngine("audio");
-          // On native Android, use the full-download route so the whole audio
-          // buffers as a single 200 response — avoids Piped signed-URL range
-          // expiry that causes silence after ~1 minute of playback.
-          media.src = getYouTubeAudioProxyUrl(current, true);
+          setEngine("native");
           try {
-            await media.play();
+            window.SonoraNativeAudio.play(
+              toAbsoluteUrl(getYouTubeAudioProxyUrl(current, true)),
+              current.title,
+              current.artist,
+              current.artwork,
+              true,
+              0,
+              Math.round((current.duration || 0) * 1000),
+            );
             if (!cancelled) {
               setIsPlaying(true);
               setError(null);
@@ -343,6 +371,33 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (!url) {
         setIsLoading(false);
         setError("This track could not be played.");
+        return;
+      }
+      if (isNativeAndroidPlayback() && window.SonoraNativeAudio?.play && /^https?:\/\//i.test(url)) {
+        setEngine("native");
+        try {
+          window.SonoraNativeAudio.play(
+            toAbsoluteUrl(url),
+            current.title,
+            current.artist,
+            current.artwork,
+            true,
+            0,
+            Math.round((current.duration || 0) * 1000),
+          );
+          if (!cancelled) {
+            setIsPlaying(true);
+            setError(null);
+            setIsLoading(false);
+          }
+        } catch (err) {
+          console.error("Native playback failed", err);
+          if (!cancelled) {
+            setIsPlaying(false);
+            setError("Playback failed. Try another source or track.");
+            setIsLoading(false);
+          }
+        }
         return;
       }
       media.src = url;
@@ -453,7 +508,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined" || !window.SonoraNativeAudio) return;
     try {
-      if (current) {
+      if (!current) {
+        window.SonoraNativeAudio.stop?.();
+      } else if (playbackEngineRef.current !== "native") {
         window.SonoraNativeAudio.start?.(
           current.title,
           current.artist,
@@ -462,8 +519,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           Math.round((progress || 0) * 1000),
           Math.round((duration || current.duration || 0) * 1000),
         );
-      } else {
-        window.SonoraNativeAudio.stop?.();
       }
     } catch {}
   }, [current, isPlaying, duration]);
@@ -472,6 +527,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined" || !window.SonoraNativeAudio) return;
     if (!current || !isPlaying) return;
+    if (playbackEngineRef.current === "native") return;
     const t = window.setInterval(() => {
       try {
         window.SonoraNativeAudio?.start?.(
@@ -497,6 +553,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       else if (detail === "next") next();
       else if (detail === "prev") prev();
       else if (detail === "stop") {
+        if (playbackEngineRef.current === "native") window.SonoraNativeAudio?.control?.("stop", 0);
         const media = getActiveMedia();
         media?.pause();
         youtubePlayerRef.current?.pauseVideo?.();
@@ -509,6 +566,35 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     window.addEventListener("sonora:media-action", onAction as EventListener);
     return () => window.removeEventListener("sonora:media-action", onAction as EventListener);
   }, [isPlaying, current]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onNativeState = (ev: Event) => {
+      const detail = (ev as CustomEvent<{
+        isPlaying?: boolean;
+        positionMs?: number;
+        durationMs?: number;
+        status?: string;
+      }>).detail;
+      if (!detail || playbackEngineRef.current !== "native") return;
+      if (typeof detail.positionMs === "number") setProgress(Math.max(0, detail.positionMs / 1000));
+      if (typeof detail.durationMs === "number" && detail.durationMs > 0) setDuration(detail.durationMs / 1000);
+      if (typeof detail.isPlaying === "boolean") setIsPlaying(detail.isPlaying);
+      if (detail.status === "ready" || detail.status === "progress" || detail.status === "play") {
+        setIsLoading(false);
+        setError(null);
+      } else if (detail.status === "ended") {
+        setIsPlaying(false);
+        finishTrack();
+      } else if (detail.status === "error") {
+        setIsLoading(false);
+        setIsPlaying(false);
+        setError("Playback failed. Try another source or track.");
+      }
+    };
+    window.addEventListener("sonora:native-state", onNativeState as EventListener);
+    return () => window.removeEventListener("sonora:native-state", onNativeState as EventListener);
+  }, [current, repeat, queue, shuffle]);
 
 
 
@@ -544,6 +630,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   };
 
   const togglePlay = () => {
+    if (playbackEngineRef.current === "native") {
+      if (!current) return;
+      if (isPlaying) {
+        window.SonoraNativeAudio?.control?.("pause", 0);
+        setIsPlaying(false);
+      } else {
+        window.SonoraNativeAudio?.control?.("play", 0);
+        setIsPlaying(true);
+      }
+      return;
+    }
     if (playbackEngineRef.current === "youtube") {
       const player = youtubePlayerRef.current;
       if (!player) return;
@@ -591,6 +688,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   };
 
   const seek = (seconds: number) => {
+    if (playbackEngineRef.current === "native") {
+      window.SonoraNativeAudio?.control?.("seek", Math.round(seconds * 1000));
+      setProgress(seconds);
+      return;
+    }
     if (playbackEngineRef.current === "youtube") {
       youtubePlayerRef.current?.seekTo?.(seconds, true);
       setProgress(seconds);
