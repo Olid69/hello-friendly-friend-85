@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TrendingUp, Radio, Sparkles, Youtube } from "lucide-react";
-import { useEffect, useState } from "react";
+import { TrendingUp, Radio, Sparkles, Youtube, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { homeFeed } from "@/lib/music-sources.functions";
+import { homeFeed, youtubeTrending } from "@/lib/music-sources.functions";
 import { TrackGrid } from "@/components/track-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 
 export const Route = createFileRoute("/")({
@@ -45,10 +47,12 @@ function GridSkeleton() {
 function Section({
   icon,
   title,
+  action,
   children,
 }: {
   icon: React.ReactNode;
   title: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -58,11 +62,14 @@ function Section({
           {icon}
         </span>
         <h2 className="font-heading text-xl md:text-2xl font-bold">{title}</h2>
+        {action ? <div className="ml-auto">{action}</div> : null}
       </div>
       {children}
     </section>
   );
 }
+
+const PULL_THRESHOLD = 70;
 
 function HomePage() {
   const [greeting, setGreeting] = useState("Welcome back");
@@ -76,8 +83,76 @@ function HomePage() {
     staleTime: 5 * 60_000,
   });
 
+  const youtubeQuery = useQuery({
+    queryKey: ["youtube-trending"],
+    queryFn: () => youtubeTrending(),
+    staleTime: 5 * 60_000,
+    initialData: data?.youtube ? { tracks: data.youtube } : undefined,
+  });
+
+  const youtubeTracks = youtubeQuery.data?.tracks ?? data?.youtube ?? [];
+
+  // Pull-to-refresh — only when scrolled to top and touch device
+  const [pull, setPull] = useState(0);
+  const startY = useRef<number | null>(null);
+  const activeRef = useRef(false);
+
+  useEffect(() => {
+    const onTouchStart = (e: TouchEvent) => {
+      if (window.scrollY > 0) return;
+      startY.current = e.touches[0]?.clientY ?? null;
+      activeRef.current = true;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!activeRef.current || startY.current == null) return;
+      const dy = (e.touches[0]?.clientY ?? 0) - startY.current;
+      if (dy > 0 && window.scrollY <= 0) {
+        setPull(Math.min(dy * 0.5, 120));
+      } else {
+        setPull(0);
+      }
+    };
+    const onTouchEnd = () => {
+      if (activeRef.current && pull >= PULL_THRESHOLD) {
+        youtubeQuery.refetch();
+      }
+      setPull(0);
+      activeRef.current = false;
+      startY.current = null;
+    };
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd);
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [pull, youtubeQuery]);
+
+  const isRefreshing = youtubeQuery.isFetching;
+
   return (
     <div className="gradient-hero min-h-full">
+      {/* Pull-to-refresh indicator */}
+      <div
+        className="pointer-events-none flex items-center justify-center overflow-hidden transition-[height] duration-150"
+        style={{ height: isRefreshing ? 48 : pull }}
+      >
+        <div
+          className={cn(
+            "flex h-10 w-10 items-center justify-center rounded-full bg-card shadow-md",
+            (isRefreshing || pull >= PULL_THRESHOLD) && "text-primary",
+          )}
+          style={{
+            transform: `rotate(${isRefreshing ? 0 : pull * 3}deg)`,
+            opacity: Math.min((pull + (isRefreshing ? 60 : 0)) / 60, 1),
+          }}
+        >
+          <RefreshCw className={cn("h-5 w-5", isRefreshing && "animate-spin")} />
+        </div>
+      </div>
+
       <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
         <div className="animate-float-in">
           <h1 className="font-heading text-3xl md:text-5xl font-extrabold tracking-tight">
@@ -101,24 +176,47 @@ function HomePage() {
           </div>
         )}
 
-        {data && (
+        {(data || youtubeTracks.length > 0) && (
           <>
-            <Section icon={<Youtube className="h-4 w-4" />} title="Popular on YouTube">
-              <TrackGrid tracks={data.youtube} />
+            <Section
+              icon={<Youtube className="h-4 w-4" />}
+              title="Popular on YouTube"
+              action={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => youtubeQuery.refetch()}
+                  disabled={isRefreshing}
+                  className="gap-2"
+                  aria-label="Refresh YouTube trending"
+                >
+                  <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </Button>
+              }
+            >
+              {youtubeQuery.isLoading && youtubeTracks.length === 0 ? (
+                <GridSkeleton />
+              ) : (
+                <TrackGrid tracks={youtubeTracks} />
+              )}
             </Section>
-            <Section icon={<TrendingUp className="h-4 w-4" />} title="Popular on Jamendo">
-              <TrackGrid tracks={data.jamendo} />
-            </Section>
-            <Section icon={<Radio className="h-4 w-4" />} title="Trending on Audius">
-              <TrackGrid tracks={data.audius} />
-            </Section>
-            <Section icon={<Sparkles className="h-4 w-4" />} title="Deezer Charts (previews)">
-              <TrackGrid tracks={data.deezer} />
-            </Section>
+            {data && (
+              <>
+                <Section icon={<TrendingUp className="h-4 w-4" />} title="Popular on Jamendo">
+                  <TrackGrid tracks={data.jamendo} />
+                </Section>
+                <Section icon={<Radio className="h-4 w-4" />} title="Trending on Audius">
+                  <TrackGrid tracks={data.audius} />
+                </Section>
+                <Section icon={<Sparkles className="h-4 w-4" />} title="Deezer Charts (previews)">
+                  <TrackGrid tracks={data.deezer} />
+                </Section>
+              </>
+            )}
           </>
         )}
       </div>
     </div>
   );
 }
-
