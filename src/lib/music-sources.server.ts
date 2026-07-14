@@ -208,15 +208,37 @@ export async function trendingPiped(limit = 12, region = "US"): Promise<UnifiedT
   return results;
 }
 
-export async function latestBollywoodHollywood(limit = 20): Promise<UnifiedTrack[]> {
-  const year = new Date().getFullYear();
-  const queries = [
-    `latest bollywood songs ${year}`,
-    `new hindi songs ${year}`,
-    `latest hollywood songs ${year}`,
-    `new english songs ${year}`,
+export type LatestFilter = "all" | "bollywood" | "hollywood";
+
+export async function latestBollywoodHollywood(
+  limit = 20,
+  filter: LatestFilter = "all",
+  yearFrom?: number,
+  yearTo?: number,
+): Promise<UnifiedTrack[]> {
+  const now = new Date().getFullYear();
+  const to = yearTo ?? now;
+  const from = yearFrom ?? to;
+  const years: number[] = [];
+  for (let y = to; y >= from && years.length < 6; y--) years.push(y);
+  if (!years.length) years.push(now);
+
+  const bolly = (y: number) => [
+    `latest bollywood songs ${y}`,
+    `new hindi songs ${y}`,
   ];
-  const perQuery = Math.max(4, Math.ceil(limit / queries.length) + 2);
+  const holly = (y: number) => [
+    `latest hollywood songs ${y}`,
+    `new english songs ${y}`,
+  ];
+
+  const queries: string[] = [];
+  for (const y of years) {
+    if (filter === "all" || filter === "bollywood") queries.push(...bolly(y));
+    if (filter === "all" || filter === "hollywood") queries.push(...holly(y));
+  }
+
+  const perQuery = Math.max(4, Math.ceil(limit / Math.max(queries.length, 1)) + 2);
   const settled = await Promise.allSettled(
     queries.map((q) => searchPipedVideos(q, perQuery)),
   );
