@@ -311,7 +311,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // Load stream when current changes (resolves YouTube via Piped on demand).
   useEffect(() => {
     if (!current) return;
+    // On a restored session (page reload), don't auto-start streams — wait for user gesture.
+    if (restoredProgress !== null && playRequestId === 0) {
+      setIsLoading(false);
+      setIsPlaying(false);
+      setProgress(restoredProgress);
+      setDuration(current.duration || 0);
+      return;
+    }
     let cancelled = false;
+
 
     // Track recent plays (persist to localStorage + cloud if signed in).
     if (typeof window !== "undefined") {
