@@ -70,15 +70,24 @@ function Section({
 }
 
 const PULL_THRESHOLD = 70;
-const YT_CACHE_KEY = "sonora:yt-trending:v1";
+const YT_CACHE_KEY = "sonora:yt-trending:v2";
+const CURRENT_YEAR = new Date().getFullYear();
+const MIN_YEAR = 2000;
 
+type YtFilter = "all" | "bollywood" | "hollywood";
 type YoutubeTrendingResult = Awaited<ReturnType<typeof youtubeTrending>>;
 
 function HomePage() {
   const [greeting, setGreeting] = useState("Welcome back");
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setGreeting(getGreeting());
+    setMounted(true);
   }, []);
+
+  const [ytFilter, setYtFilter] = useState<YtFilter>("all");
+  const [yearFrom, setYearFrom] = useState<number>(CURRENT_YEAR - 1);
+  const [yearTo, setYearTo] = useState<number>(CURRENT_YEAR);
 
   const { data, isLoading } = useQuery({
     queryKey: ["home-feed"],
@@ -86,9 +95,11 @@ function HomePage() {
     staleTime: 5 * 60_000,
   });
 
+  const ytCacheKey = `${YT_CACHE_KEY}:${ytFilter}:${yearFrom}-${yearTo}`;
+
   const youtubeQuery = useQuery({
-    queryKey: ["youtube-trending"],
-    queryFn: () => youtubeTrending(),
+    queryKey: ["youtube-trending", ytFilter, yearFrom, yearTo],
+    queryFn: () => youtubeTrending({ data: { filter: ytFilter, yearFrom, yearTo } }),
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
@@ -96,7 +107,7 @@ function HomePage() {
     initialData: () => {
       if (typeof window === "undefined") return undefined;
       try {
-        const raw = localStorage.getItem(YT_CACHE_KEY);
+        const raw = localStorage.getItem(ytCacheKey);
         if (!raw) return undefined;
         const parsed = JSON.parse(raw) as { tracks?: YoutubeTrendingResult["tracks"]; savedAt?: number };
         if (!parsed?.tracks?.length) return undefined;
@@ -108,7 +119,7 @@ function HomePage() {
     initialDataUpdatedAt: () => {
       if (typeof window === "undefined") return 0;
       try {
-        const raw = localStorage.getItem(YT_CACHE_KEY);
+        const raw = localStorage.getItem(ytCacheKey);
         if (!raw) return 0;
         const parsed = JSON.parse(raw) as { savedAt: number };
         return typeof parsed?.savedAt === "number" ? parsed.savedAt : 0;
@@ -118,21 +129,20 @@ function HomePage() {
     },
   });
 
-  // Persist YouTube trending to localStorage for fast next-load
   useEffect(() => {
     if (!youtubeQuery.data?.tracks?.length) return;
     if (youtubeQuery.isFetching) return;
     try {
       localStorage.setItem(
-        YT_CACHE_KEY,
+        ytCacheKey,
         JSON.stringify({ tracks: youtubeQuery.data.tracks, savedAt: Date.now() }),
       );
     } catch {
       // ignore quota errors
     }
-  }, [youtubeQuery.data, youtubeQuery.isFetching]);
+  }, [youtubeQuery.data, youtubeQuery.isFetching, ytCacheKey]);
 
-  const youtubeTracks = youtubeQuery.data?.tracks ?? data?.youtube ?? [];
+  const youtubeTracks = youtubeQuery.data?.tracks ?? [];
 
   // Pull-to-refresh — only when scrolled to top and touch device
   const [pull, setPull] = useState(0);
@@ -172,14 +182,16 @@ function HomePage() {
     };
   }, [pull, youtubeQuery]);
 
-  const isRefreshing = youtubeQuery.isFetching;
+  const isRefreshing = mounted && youtubeQuery.isFetching;
+  const indicatorHeight = mounted ? (isRefreshing ? 48 : pull) : 0;
+  const indicatorOpacity = mounted ? Math.min((pull + (isRefreshing ? 60 : 0)) / 60, 1) : 0;
 
   return (
     <div className="gradient-hero min-h-full">
       {/* Pull-to-refresh indicator */}
       <div
         className="pointer-events-none flex items-center justify-center overflow-hidden transition-[height] duration-150"
-        style={{ height: isRefreshing ? 48 : pull }}
+        style={{ height: indicatorHeight }}
       >
         <div
           className={cn(
@@ -188,12 +200,13 @@ function HomePage() {
           )}
           style={{
             transform: `rotate(${isRefreshing ? 0 : pull * 3}deg)`,
-            opacity: Math.min((pull + (isRefreshing ? 60 : 0)) / 60, 1),
+            opacity: indicatorOpacity,
           }}
         >
           <RefreshCw className={cn("h-5 w-5", isRefreshing && "animate-spin")} />
         </div>
       </div>
+
 
       <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
         <div className="animate-float-in">
@@ -237,6 +250,54 @@ function HomePage() {
                 </Button>
               }
             >
+              <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/60 bg-card/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap gap-2">
+                  {(["all", "bollywood", "hollywood"] as const).map((f) => (
+                    <Button
+                      key={f}
+                      size="sm"
+                      variant={ytFilter === f ? "default" : "outline"}
+                      onClick={() => setYtFilter(f)}
+                      className="h-8 rounded-full capitalize"
+                    >
+                      {f === "all" ? "All" : f === "bollywood" ? "Bollywood" : "Hollywood"}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">Year</span>
+                  <select
+                    aria-label="Year from"
+                    className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+                    value={yearFrom}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setYearFrom(v);
+                      if (v > yearTo) setYearTo(v);
+                    }}
+                  >
+                    {Array.from({ length: CURRENT_YEAR - MIN_YEAR + 1 }, (_, i) => CURRENT_YEAR - i).map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                  <span className="text-muted-foreground">–</span>
+                  <select
+                    aria-label="Year to"
+                    className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+                    value={yearTo}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setYearTo(v);
+                      if (v < yearFrom) setYearFrom(v);
+                    }}
+                  >
+                    {Array.from({ length: CURRENT_YEAR - MIN_YEAR + 1 }, (_, i) => CURRENT_YEAR - i).map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               {youtubeQuery.isLoading && youtubeTracks.length === 0 ? (
                 <GridSkeleton />
               ) : youtubeQuery.isError && youtubeTracks.length === 0 ? (
