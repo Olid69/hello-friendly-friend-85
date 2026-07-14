@@ -53,6 +53,7 @@
   --color-player: var(--player);
   --color-player-foreground: var(--player-foreground);
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Force dark-first — this is a music app; light mode is not offered. */
