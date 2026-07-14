@@ -508,7 +508,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined" || !window.SonoraNativeAudio) return;
     try {
-      if (current && playbackEngineRef.current !== "native") {
+      if (!current) {
+        window.SonoraNativeAudio.stop?.();
+      } else if (playbackEngineRef.current !== "native") {
         window.SonoraNativeAudio.start?.(
           current.title,
           current.artist,
@@ -517,8 +519,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           Math.round((progress || 0) * 1000),
           Math.round((duration || current.duration || 0) * 1000),
         );
-      } else {
-        window.SonoraNativeAudio.stop?.();
       }
     } catch {}
   }, [current, isPlaying, duration]);
