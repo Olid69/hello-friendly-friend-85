@@ -25,6 +25,7 @@ import { Route as GetAppRouteImport } from './routes/get-app'
 import { Route as EqualizerRouteImport } from './routes/equalizer'
 import { Route as DownloadsRouteImport } from './routes/downloads'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AppearanceRouteImport } from './routes/appearance'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlaylistsIdRouteImport } from './routes/playlists.$id'
 import { Route as ApiPublicYoutubeAudioRouteImport } from './routes/api/public/youtube-audio'
@@ -110,6 +111,11 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppearanceRoute = AppearanceRouteImport.update({
+  id: '/appearance',
+  path: '/appearance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -133,6 +139,7 @@ const ApiPublicProxyRoute = ApiPublicProxyRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/appearance': typeof AppearanceRoute
   '/auth': typeof AuthRoute
   '/downloads': typeof DownloadsRoute
   '/equalizer': typeof EqualizerRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/appearance': typeof AppearanceRoute
   '/auth': typeof AuthRoute
   '/downloads': typeof DownloadsRoute
   '/equalizer': typeof EqualizerRoute
@@ -178,6 +186,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/appearance': typeof AppearanceRoute
   '/auth': typeof AuthRoute
   '/downloads': typeof DownloadsRoute
   '/equalizer': typeof EqualizerRoute
@@ -202,6 +211,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/appearance'
     | '/auth'
     | '/downloads'
     | '/equalizer'
@@ -224,6 +234,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/appearance'
     | '/auth'
     | '/downloads'
     | '/equalizer'
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/appearance'
     | '/auth'
     | '/downloads'
     | '/equalizer'
@@ -269,6 +281,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppearanceRoute: typeof AppearanceRoute
   AuthRoute: typeof AuthRoute
   DownloadsRoute: typeof DownloadsRoute
   EqualizerRoute: typeof EqualizerRoute
@@ -403,6 +416,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/appearance': {
+      id: '/appearance'
+      path: '/appearance'
+      fullPath: '/appearance'
+      preLoaderRoute: typeof AppearanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -448,6 +468,7 @@ const PlaylistsRouteWithChildren = PlaylistsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppearanceRoute: AppearanceRoute,
   AuthRoute: AuthRoute,
   DownloadsRoute: DownloadsRoute,
   EqualizerRoute: EqualizerRoute,
