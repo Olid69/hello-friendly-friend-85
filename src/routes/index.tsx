@@ -295,6 +295,24 @@ function HomePage() {
                       <option key={y} value={y}>{y}</option>
                     ))}
                   </select>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setYtFilter("all");
+                      setYearFrom(CURRENT_YEAR - 1);
+                      setYearTo(CURRENT_YEAR);
+                    }}
+                    disabled={
+                      ytFilter === "all" &&
+                      yearFrom === CURRENT_YEAR - 1 &&
+                      yearTo === CURRENT_YEAR
+                    }
+                    className="h-8 rounded-full"
+                    aria-label="Reset filters"
+                  >
+                    Reset
+                  </Button>
                 </div>
               </div>
 
