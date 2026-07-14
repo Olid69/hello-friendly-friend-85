@@ -18,7 +18,7 @@ import { AuthProvider } from "../lib/auth-context";
 import { I18nProvider } from "../lib/i18n";
 import { OfflineBanner } from "../components/offline-banner";
 import { supabase } from "../integrations/supabase/client";
-import { cleanOAuthParamsFromCurrentUrl, completeOAuthSessionFromUrl, hasOAuthParams } from "../lib/oauth-session";
+
 
 function NotFoundComponent() {
   return (
@@ -152,21 +152,9 @@ function RootComponent() {
     return () => sub.subscription.unsubscribe();
   }, [queryClient, router]);
 
-  useEffect(() => {
-    if (!hasOAuthParams()) return;
-    let cancelled = false;
-    completeOAuthSessionFromUrl().then((result) => {
-      if (cancelled) return;
-      if (result.completed) {
-        cleanOAuthParamsFromCurrentUrl();
-        router.invalidate();
-        queryClient.invalidateQueries();
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [queryClient, router]);
+  // OAuth return: supabase-js detectSessionInUrl parses the hash and
+  // fires SIGNED_IN via the listener above; nothing else needed here.
+
 
   return (
     <QueryClientProvider client={queryClient}>

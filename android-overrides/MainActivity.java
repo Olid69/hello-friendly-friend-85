@@ -30,6 +30,13 @@ public class MainActivity extends BridgeActivity {
     WebView webView = getBridge().getWebView();
     WebSettings settings = webView.getSettings();
 
+    // Google blocks OAuth in "; wv)" WebViews with "disallowed_useragent".
+    // Strip the wv marker so Continue with Google works inside the APK.
+    String ua = settings.getUserAgentString();
+    if (ua != null && ua.contains("; wv)")) {
+      settings.setUserAgentString(ua.replace("; wv)", ")"));
+    }
+
     // Allow Google OAuth popup + audio background quirks
     settings.setJavaScriptCanOpenWindowsAutomatically(true);
     settings.setSupportMultipleWindows(true);

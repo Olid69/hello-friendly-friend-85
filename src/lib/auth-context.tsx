@@ -28,9 +28,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    // Fire the listener FIRST so we never miss the SIGNED_IN event emitted
+    // by detectSessionInUrl right after an OAuth redirect return.
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
       setLoading(false);
+
+      // After OAuth redirect completes, hop to the intended page and clear
+      // the tokens out of the URL so they don't linger in history.
+      if (event === "SIGNED_IN" && typeof window !== "undefined") {
+        try {
+          if (window.location.hash.includes("access_token")) {
+            history.replaceState(null, "", window.location.pathname + window.location.search);
+          }
+          const dest = sessionStorage.getItem("sonora:post-auth-redirect");
+          if (dest) {
+            sessionStorage.removeItem("sonora:post-auth-redirect");
+            if (window.location.pathname === "/auth") {
+              window.location.replace(dest);
+            }
+          }
+        } catch {}
+      }
     });
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);

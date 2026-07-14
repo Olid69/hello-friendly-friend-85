@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { lovable } from "@/integrations/lovable/index";
 import { cn } from "@/lib/utils";
-import { isNativeAndroidWebView, signInWithGoogleInNativeWebView } from "@/lib/native-google-auth";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -48,20 +47,13 @@ function AuthPage() {
   };
 
   const googleSignIn = async () => {
+    if (loading) return;
     setLoading(true);
     try {
-      if (isNativeAndroidWebView()) {
-        const nativeResult = await signInWithGoogleInNativeWebView();
-        setLoading(false);
-        if (nativeResult.error) {
-          toast.error(nativeResult.error.message);
-          return;
-        }
-        toast.success("Signed in with Google");
-        router.invalidate();
-        navigate({ to: "/" });
-        return;
-      }
+      // Remember where to go once the session is restored after redirect.
+      try {
+        sessionStorage.setItem("sonora:post-auth-redirect", "/");
+      } catch {}
 
       const res = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
@@ -71,7 +63,10 @@ function AuthPage() {
         toast.error(res.error.message);
         return;
       }
+      // Full-page redirect path — WebView will navigate away, then return
+      // with tokens in the URL hash which supabase-js auto-detects.
       if (res.redirected) return;
+      // Popup / web_message path (desktop browser).
       setLoading(false);
       toast.success("Signed in with Google");
       router.invalidate();
