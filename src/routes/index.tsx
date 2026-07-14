@@ -87,8 +87,49 @@ function HomePage() {
     queryKey: ["youtube-trending"],
     queryFn: () => youtubeTrending(),
     staleTime: 5 * 60_000,
-    initialData: data?.youtube ? { tracks: data.youtube } : undefined,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
+    initialData: () => {
+      if (typeof window === "undefined") return undefined;
+      try {
+        const raw = localStorage.getItem(YT_CACHE_KEY);
+        if (!raw) return undefined;
+        const parsed = JSON.parse(raw) as { tracks: unknown; savedAt: number };
+        if (!parsed?.tracks) return undefined;
+        return { tracks: parsed.tracks as ReturnType<typeof Array>[] } as {
+          tracks: NonNullable<ReturnType<typeof youtubeTrending> extends Promise<infer T> ? T : never>["tracks"];
+        };
+      } catch {
+        return undefined;
+      }
+    },
+    initialDataUpdatedAt: () => {
+      if (typeof window === "undefined") return 0;
+      try {
+        const raw = localStorage.getItem(YT_CACHE_KEY);
+        if (!raw) return 0;
+        const parsed = JSON.parse(raw) as { savedAt: number };
+        return typeof parsed?.savedAt === "number" ? parsed.savedAt : 0;
+      } catch {
+        return 0;
+      }
+    },
   });
+
+  // Persist YouTube trending to localStorage for fast next-load
+  useEffect(() => {
+    if (!youtubeQuery.data?.tracks?.length) return;
+    if (youtubeQuery.isFetching) return;
+    try {
+      localStorage.setItem(
+        YT_CACHE_KEY,
+        JSON.stringify({ tracks: youtubeQuery.data.tracks, savedAt: Date.now() }),
+      );
+    } catch {
+      // ignore quota errors
+    }
+  }, [youtubeQuery.data, youtubeQuery.isFetching]);
 
   const youtubeTracks = youtubeQuery.data?.tracks ?? data?.youtube ?? [];
 
