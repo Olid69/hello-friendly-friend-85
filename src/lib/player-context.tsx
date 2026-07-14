@@ -126,6 +126,54 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [playRequestId, setPlayRequestId] = useState(0);
   const [playbackEngine, setPlaybackEngine] = useState<PlaybackEngine>(null);
+  const [restoredProgress, setRestoredProgress] = useState<number | null>(null);
+  const hasRestoredRef = useRef(false);
+
+  // Restore last session (current + queue + modes + position) on mount.
+  useEffect(() => {
+    if (typeof window === "undefined" || hasRestoredRef.current) return;
+    hasRestoredRef.current = true;
+    try {
+      const raw = window.localStorage.getItem("sonora.player.session");
+      if (!raw) return;
+      const s = JSON.parse(raw) as {
+        current?: UnifiedTrack | null;
+        queue?: UnifiedTrack[];
+        shuffle?: boolean;
+        repeat?: RepeatMode;
+        progress?: number;
+        volume?: number;
+      };
+      if (s.queue?.length) setQueue(s.queue);
+      if (typeof s.shuffle === "boolean") setShuffle(s.shuffle);
+      if (s.repeat) setRepeat(s.repeat);
+      if (typeof s.volume === "number") setVolumeState(s.volume);
+      if (s.current) {
+        setRestoredProgress(s.progress ?? 0);
+        // Load metadata but don't auto-play (browser autoplay policy).
+        setCurrent(s.current);
+      }
+    } catch {}
+  }, []);
+
+  // Persist session whenever key state changes.
+  useEffect(() => {
+    if (typeof window === "undefined" || !hasRestoredRef.current) return;
+    try {
+      window.localStorage.setItem(
+        "sonora.player.session",
+        JSON.stringify({
+          current,
+          queue,
+          shuffle,
+          repeat,
+          progress,
+          volume,
+        }),
+      );
+    } catch {}
+  }, [current, queue, shuffle, repeat, progress, volume]);
+
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
@@ -263,7 +311,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // Load stream when current changes (resolves YouTube via Piped on demand).
   useEffect(() => {
     if (!current) return;
+    // On a restored session (page reload), don't auto-start streams — wait for user gesture.
+    if (restoredProgress !== null && playRequestId === 0) {
+      setIsLoading(false);
+      setIsPlaying(false);
+      setProgress(restoredProgress);
+      setDuration(current.duration || 0);
+      return;
+    }
     let cancelled = false;
+
 
     // Track recent plays (persist to localStorage + cloud if signed in).
     if (typeof window !== "undefined") {
@@ -633,6 +690,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   };
 
   const togglePlay = () => {
+    // Restored session: no engine yet — kick off a real load on user gesture.
+    if (current && playbackEngineRef.current === null) {
+      setRestoredProgress(null);
+      setPlayRequestId((id) => id + 1);
+      setIsPlaying(true);
+      return;
+    }
     if (playbackEngineRef.current === "native") {
       if (!current) return;
       if (isPlaying) {

@@ -1,5 +1,6 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router";
 import { ChevronDown, Heart, Pause, Play, SkipBack, SkipForward, Music2, Shuffle, Repeat, Repeat1, Mic2, ListMusic } from "lucide-react";
+
 import { Link } from "@tanstack/react-router";
 import { usePlayer } from "@/lib/player-context";
 import { useLiked } from "@/lib/library-store";
@@ -20,6 +21,24 @@ function fmt(sec: number) {
 
 function PlayerPage() {
   const router = useRouter();
+  const navigate = useNavigate();
+  const handleClose = () => {
+    // Robust dismiss: try history back, fall back to home if we opened deep-linked.
+    const canGoBack =
+      typeof window !== "undefined" && window.history.length > 1;
+    if (canGoBack) {
+      router.history.back();
+      // Safety net: if the pop didn't happen (e.g. fresh entry), navigate home.
+      window.setTimeout(() => {
+        if (window.location.pathname === "/player") {
+          navigate({ to: "/" });
+        }
+      }, 250);
+    } else {
+      navigate({ to: "/" });
+    }
+  };
+
   const {
     current,
     isPlaying,
@@ -49,7 +68,7 @@ function PlayerPage() {
     >
       {/* Close */}
       <button
-        onClick={() => router.history.back()}
+        onClick={handleClose}
         aria-label="Close"
         className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur hover:bg-black/50"
       >
