@@ -11,10 +11,9 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaMetadata;
-import android.media.MediaPlayer;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.net.wifi.WifiManager;
@@ -31,14 +30,28 @@ import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.datasource.DefaultDataSource;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.LoadControl;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy;
+
 /**
  * Foreground media playback service.
  *
  * Owns:
  *  - MediaSession (lock-screen + hardware / BT media button controls)
  *  - MediaStyle notification with prev / play-pause / next / stop
- *  - Native MediaPlayer playback so Android keeps audio alive when the WebView
- *    is backgrounded or the screen is off
+ *  - Native ExoPlayer playback so Android keeps audio alive when the WebView
+ *    is backgrounded or the screen is off, with buffering + reconnect recovery
  *  - Partial wake lock + Wi-Fi lock so streamed media continues in doze
  *  - A local BroadcastReceiver that forwards notification button taps back to JS
  *    via MainActivity.dispatchMediaAction().
@@ -70,13 +83,24 @@ public class SonoraAudioService extends Service {
   private PowerManager.WakeLock wakeLock;
   private WifiManager.WifiLock wifiLock;
   private MediaSession mediaSession;
-  private MediaPlayer mediaPlayer;
+  private ExoPlayer exoPlayer;
   private ButtonReceiver receiver;
   private ExecutorService artworkExecutor;
   private Handler handler;
+  private AudioFocusRequest audioFocusRequest;
+  private int retryAttempt = 0;
+  private static final int MAX_RETRY_ATTEMPTS = 10;
+  private static final long[] RETRY_DELAYS_MS = new long[] { 1000, 2000, 4000, 8000, 12000, 20000, 30000 };
+
   private final AudioManager.OnAudioFocusChangeListener audioFocusListener = focusChange -> {
-    if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
-      focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+    if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+      setPlayerVolume(1f);
+      if (playWhenPrepared && exoPlayer != null) {
+        exoPlayer.setPlayWhenReady(true);
+      }
+    } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
+      setPlayerVolume(0.35f);
+    } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
       pauseNativePlayback(true);
     }
   };
@@ -92,11 +116,20 @@ public class SonoraAudioService extends Service {
   private long lastPositionMs = 0;
   private long lastDurationMs = 0;
 
+  private final Runnable retryRunnable = new Runnable() {
+    @Override public void run() {
+      retryPlaybackFromLastPosition();
+    }
+  };
+
   private final Runnable progressRunnable = new Runnable() {
     @Override public void run() {
       syncPlayerPosition();
-      MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, "progress");
-      if (handler != null && mediaPlayer != null) handler.postDelayed(this, 1000);
+      String status = exoPlayer != null && exoPlayer.getPlaybackState() == Player.STATE_BUFFERING
+        ? "buffering"
+        : "progress";
+      MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, status);
+      if (handler != null && exoPlayer != null) handler.postDelayed(this, 1000);
     }
   };
 
