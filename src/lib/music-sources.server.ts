@@ -208,6 +208,36 @@ export async function trendingPiped(limit = 12, region = "US"): Promise<UnifiedT
   return results;
 }
 
+export async function latestBollywoodHollywood(limit = 20): Promise<UnifiedTrack[]> {
+  const year = new Date().getFullYear();
+  const queries = [
+    `latest bollywood songs ${year}`,
+    `new hindi songs ${year}`,
+    `latest hollywood songs ${year}`,
+    `new english songs ${year}`,
+  ];
+  const perQuery = Math.max(4, Math.ceil(limit / queries.length) + 2);
+  const settled = await Promise.allSettled(
+    queries.map((q) => searchPipedVideos(q, perQuery)),
+  );
+  const buckets: UnifiedTrack[][] = settled.map((s) =>
+    s.status === "fulfilled" ? s.value : [],
+  );
+  const seen = new Set<string>();
+  const results: UnifiedTrack[] = [];
+  const maxLen = Math.max(0, ...buckets.map((b) => b.length));
+  for (let i = 0; i < maxLen && results.length < limit; i++) {
+    for (const b of buckets) {
+      const t = b[i];
+      if (!t || seen.has(t.id)) continue;
+      seen.add(t.id);
+      results.push(t);
+      if (results.length >= limit) break;
+    }
+  }
+  return results;
+}
+
 const INVIDIOUS_INSTANCES = [
   "https://inv.nadeko.net",
   "https://invidious.nerdvpn.de",
