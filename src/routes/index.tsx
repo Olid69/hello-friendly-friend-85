@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TrendingUp, Radio, Sparkles } from "lucide-react";
+import { TrendingUp, Radio, Sparkles, Youtube } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { homeFeed } from "@/lib/music-sources.functions";
