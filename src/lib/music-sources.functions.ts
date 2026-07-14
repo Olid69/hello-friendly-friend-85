@@ -27,12 +27,13 @@ export const unifiedSearch = createServerFn({ method: "GET" })
   });
 
 export const homeFeed = createServerFn({ method: "GET" }).handler(async () => {
-  const [jamendo, audius, deezer] = await Promise.all([
+  const [youtube, jamendo, audius, deezer] = await Promise.all([
+    trendingPiped(12),
     popularJamendo(12),
     trendingAudius(12),
     chartDeezer(12),
   ]);
-  return { jamendo, audius, deezer };
+  return { youtube, jamendo, audius, deezer };
 });
 
 export const resolveYoutubeStream = createServerFn({ method: "GET" })
