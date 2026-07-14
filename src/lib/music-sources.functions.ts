@@ -36,6 +36,10 @@ export const homeFeed = createServerFn({ method: "GET" }).handler(async () => {
   return { youtube, jamendo, audius, deezer };
 });
 
+export const youtubeTrending = createServerFn({ method: "GET" }).handler(async () => {
+  return { tracks: await trendingPiped(12) };
+});
+
 export const resolveYoutubeStream = createServerFn({ method: "GET" })
   .inputValidator((d: { videoId: string }) => d)
   .handler(async ({ data }) => {
