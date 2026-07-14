@@ -305,7 +305,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           const media = audioRef.current;
           if (!media) return;
           setEngine("audio");
-          media.src = getYouTubeAudioProxyUrl(current);
+          // On native Android, use the full-download route so the whole audio
+          // buffers as a single 200 response — avoids Piped signed-URL range
+          // expiry that causes silence after ~1 minute of playback.
+          media.src = getYouTubeAudioProxyUrl(current, true);
           try {
             await media.play();
             if (!cancelled) {
