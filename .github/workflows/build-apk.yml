@@ -136,6 +136,12 @@ jobs:
           from pathlib import Path
           p = Path("android/app/build.gradle")
           text = p.read_text()
+          if 'androidx.media3:media3-exoplayer' not in text:
+              text = text.replace(
+                  "dependencies {",
+                  "dependencies {\n    implementation 'androidx.media3:media3-exoplayer:1.8.0'\n    implementation 'androidx.media3:media3-datasource:1.8.0'",
+                  1,
+              )
           # Keep all ABIs (universal fat APK) — bigger install but works on every device.
           if "abiFilters" not in text:
               text = text.replace(

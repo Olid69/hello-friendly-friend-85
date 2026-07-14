@@ -11,10 +11,9 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaMetadata;
-import android.media.MediaPlayer;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.net.wifi.WifiManager;
@@ -31,14 +30,27 @@ import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.datasource.DefaultDataSource;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.LoadControl;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
+
 /**
  * Foreground media playback service.
  *
  * Owns:
  *  - MediaSession (lock-screen + hardware / BT media button controls)
  *  - MediaStyle notification with prev / play-pause / next / stop
- *  - Native MediaPlayer playback so Android keeps audio alive when the WebView
- *    is backgrounded or the screen is off
+ *  - Native ExoPlayer playback so Android keeps audio alive when the WebView
+ *    is backgrounded or the screen is off, with buffering + reconnect recovery
  *  - Partial wake lock + Wi-Fi lock so streamed media continues in doze
  *  - A local BroadcastReceiver that forwards notification button taps back to JS
  *    via MainActivity.dispatchMediaAction().
@@ -70,13 +82,24 @@ public class SonoraAudioService extends Service {
   private PowerManager.WakeLock wakeLock;
   private WifiManager.WifiLock wifiLock;
   private MediaSession mediaSession;
-  private MediaPlayer mediaPlayer;
+  private ExoPlayer exoPlayer;
   private ButtonReceiver receiver;
   private ExecutorService artworkExecutor;
   private Handler handler;
+  private AudioFocusRequest audioFocusRequest;
+  private int retryAttempt = 0;
+  private static final int MAX_RETRY_ATTEMPTS = 10;
+  private static final long[] RETRY_DELAYS_MS = new long[] { 1000, 2000, 4000, 8000, 12000, 20000, 30000 };
+
   private final AudioManager.OnAudioFocusChangeListener audioFocusListener = focusChange -> {
-    if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
-      focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+    if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+      setPlayerVolume(1f);
+      if (playWhenPrepared && exoPlayer != null) {
+        exoPlayer.setPlayWhenReady(true);
+      }
+    } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
+      setPlayerVolume(0.35f);
+    } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
       pauseNativePlayback(true);
     }
   };
@@ -92,11 +115,20 @@ public class SonoraAudioService extends Service {
   private long lastPositionMs = 0;
   private long lastDurationMs = 0;
 
+  private final Runnable retryRunnable = new Runnable() {
+    @Override public void run() {
+      retryPlaybackFromLastPosition();
+    }
+  };
+
   private final Runnable progressRunnable = new Runnable() {
     @Override public void run() {
       syncPlayerPosition();
-      MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, "progress");
-      if (handler != null && mediaPlayer != null) handler.postDelayed(this, 1000);
+      String status = exoPlayer != null && exoPlayer.getPlaybackState() == Player.STATE_BUFFERING
+        ? "buffering"
+        : "progress";
+      MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, status);
+      if (handler != null && exoPlayer != null) handler.postDelayed(this, 1000);
     }
   };
 
@@ -120,8 +152,10 @@ public class SonoraAudioService extends Service {
     }
 
     if (intent != null && ACTION_CONTROL.equals(intent.getAction())) {
-      handlePlaybackControl(intent.getStringExtra(EXTRA_CONTROL), intent.getLongExtra(EXTRA_POSITION_MS, 0));
-      return START_STICKY;
+      String control = intent.getStringExtra(EXTRA_CONTROL);
+      handlePlaybackControl(control, intent.getLongExtra(EXTRA_POSITION_MS, 0));
+      if (!"stop".equals(control)) promoteToForeground();
+      return START_REDELIVER_INTENT;
     }
 
     if (intent != null) {
@@ -157,28 +191,16 @@ public class SonoraAudioService extends Service {
 
     acquireWakeLock();
     updateMediaSession();
-    // Android 14+ (API 34) requires an explicit foregroundServiceType on
-    // startForeground() or the OS kills the service after a short while —
-    // this is why playback was stopping in the background.
-    try {
-      if (Build.VERSION.SDK_INT >= 34) {
-        startForeground(
-          NOTIFICATION_ID,
-          buildNotification(),
-          android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-        );
-      } else {
-        startForeground(NOTIFICATION_ID, buildNotification());
-      }
-    } catch (Exception e) {
-      startForeground(NOTIFICATION_ID, buildNotification());
-    }
-    return START_STICKY;
+    promoteToForeground();
+    return START_REDELIVER_INTENT;
   }
 
   @Override
   public void onDestroy() {
-    if (handler != null) handler.removeCallbacks(progressRunnable);
+    if (handler != null) {
+      handler.removeCallbacks(progressRunnable);
+      handler.removeCallbacks(retryRunnable);
+    }
     releaseNativePlayer();
     releaseWakeLock();
     releaseWifiLock();
@@ -265,7 +287,12 @@ public class SonoraAudioService extends Service {
       | PlaybackState.ACTION_SKIP_TO_PREVIOUS
       | PlaybackState.ACTION_SEEK_TO
       | PlaybackState.ACTION_STOP;
-    int state = lastIsPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED;
+    int state = PlaybackState.STATE_PAUSED;
+    if (exoPlayer != null && exoPlayer.getPlaybackState() == Player.STATE_BUFFERING) {
+      state = PlaybackState.STATE_BUFFERING;
+    } else if (lastIsPlaying) {
+      state = PlaybackState.STATE_PLAYING;
+    }
     PlaybackState.Builder ps = new PlaybackState.Builder()
       .setActions(actions)
       .setState(state, Math.max(0, lastPositionMs), 1f);
@@ -319,6 +346,24 @@ public class SonoraAudioService extends Service {
     }
 
     return builder.build();
+  }
+
+  private void promoteToForeground() {
+    // Android 14+ (API 34) requires an explicit foregroundServiceType on
+    // startForeground() or the OS kills the service after a short while.
+    try {
+      if (Build.VERSION.SDK_INT >= 34) {
+        startForeground(
+          NOTIFICATION_ID,
+          buildNotification(),
+          android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+        );
+      } else {
+        startForeground(NOTIFICATION_ID, buildNotification());
+      }
+    } catch (Exception e) {
+      try { startForeground(NOTIFICATION_ID, buildNotification()); } catch (Exception ignored) {}
+    }
   }
 
   private Notification.Action action(int icon, String label, String action) {
@@ -417,51 +462,18 @@ public class SonoraAudioService extends Service {
     releaseNativePlayer();
     lastStreamUrl = streamUrl;
     isPrepared = false;
+    retryAttempt = 0;
     requestAudioFocus();
     acquireWakeLock();
     acquireWifiLock();
 
-    MediaPlayer player = new MediaPlayer();
-    mediaPlayer = player;
     try {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-        player.setAudioAttributes(new AudioAttributes.Builder()
-          .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-          .setUsage(AudioAttributes.USAGE_MEDIA)
-          .build());
-      } else {
-        player.setAudioStreamType(AudioManager.STREAM_MUSIC);
-      }
-      player.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
-      player.setDataSource(streamUrl);
-      player.setOnPreparedListener(mp -> {
-        isPrepared = true;
-        int d = mp.getDuration();
-        if (d > 0) lastDurationMs = d;
-        if (lastPositionMs > 0 && (lastDurationMs <= 0 || lastPositionMs < lastDurationMs)) {
-          try { mp.seekTo((int) lastPositionMs); } catch (Exception ignored) {}
-        }
-        if (playWhenPrepared) startPreparedPlayer();
-        updateMediaSession();
-        refreshNotification();
-        MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, "ready");
-      });
-      player.setOnCompletionListener(mp -> {
-        lastIsPlaying = false;
-        syncPlayerPosition();
-        updateMediaSession();
-        refreshNotification();
-        MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "ended");
-        MainActivity.dispatchMediaAction("ended");
-      });
-      player.setOnErrorListener((mp, what, extra) -> {
-        lastIsPlaying = false;
-        updateMediaSession();
-        refreshNotification();
-        MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "error");
-        return true;
-      });
-      player.prepareAsync();
+      exoPlayer = buildExoPlayer();
+      exoPlayer.setMediaItem(MediaItem.fromUri(streamUrl));
+      if (lastPositionMs > 0) exoPlayer.seekTo(Math.max(0, lastPositionMs));
+      exoPlayer.setPlayWhenReady(playWhenPrepared);
+      exoPlayer.prepare();
+      startProgressUpdates();
     } catch (Exception e) {
       lastIsPlaying = false;
       MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "error");
@@ -469,12 +481,111 @@ public class SonoraAudioService extends Service {
     }
   }
 
+  private ExoPlayer buildExoPlayer() {
+    DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
+      .setUserAgent("Sonora/1.0 Android")
+      .setAllowCrossProtocolRedirects(true)
+      .setConnectTimeoutMs(20000)
+      .setReadTimeoutMs(45000);
+
+    DefaultDataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(this, httpFactory);
+    LoadControl loadControl = new DefaultLoadControl.Builder()
+      .setBufferDurationsMs(
+        50000,   // min buffer: tolerate short network stalls
+        180000,  // max buffer: long enough for mobile radio / Wi-Fi handoffs
+        2500,    // start playback quickly
+        7000     // wait slightly longer after rebuffering to avoid looped stalls
+      )
+      .setPrioritizeTimeOverSizeThresholds(true)
+      .build();
+
+    DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(dataSourceFactory)
+      .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(8));
+
+    ExoPlayer player = new ExoPlayer.Builder(this)
+      .setMediaSourceFactory(mediaSourceFactory)
+      .setLoadControl(loadControl)
+      .build();
+
+    player.setAudioAttributes(new AudioAttributes.Builder()
+      .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+      .setUsage(C.USAGE_MEDIA)
+      .build(), false);
+    player.setHandleAudioBecomingNoisy(true);
+    player.setWakeMode(C.WAKE_MODE_LOCAL);
+    player.setVolume(1f);
+    player.addListener(new Player.Listener() {
+      @Override public void onPlaybackStateChanged(int state) {
+        if (state == Player.STATE_READY) {
+          isPrepared = true;
+          retryAttempt = 0;
+          syncPlayerPosition();
+          if (playWhenPrepared && exoPlayer != null) exoPlayer.setPlayWhenReady(true);
+          updateMediaSession();
+          refreshNotification();
+          MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, "ready");
+        } else if (state == Player.STATE_BUFFERING) {
+          lastIsPlaying = playWhenPrepared;
+          updateMediaSession();
+          refreshNotification();
+          MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, "buffering");
+        } else if (state == Player.STATE_ENDED) {
+          lastIsPlaying = false;
+          syncPlayerPosition();
+          updateMediaSession();
+          refreshNotification();
+          MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "ended");
+          MainActivity.dispatchMediaAction("ended");
+        }
+      }
+
+      @Override public void onIsPlayingChanged(boolean isPlaying) {
+        boolean isBufferingToResume = exoPlayer != null
+          && exoPlayer.getPlaybackState() == Player.STATE_BUFFERING
+          && playWhenPrepared;
+        lastIsPlaying = isPlaying || isBufferingToResume;
+        if (isPlaying) {
+          playWhenPrepared = true;
+          acquireWakeLock();
+          acquireWifiLock();
+          startProgressUpdates();
+        }
+        updateMediaSession();
+        refreshNotification();
+        MainActivity.dispatchNativeState(
+          lastIsPlaying,
+          lastPositionMs,
+          lastDurationMs,
+          isBufferingToResume ? "buffering" : (isPlaying ? "play" : "pause")
+        );
+      }
+
+      @Override public void onPlayerError(PlaybackException error) {
+        isPrepared = true;
+        syncPlayerPosition();
+        if (playWhenPrepared && shouldRetryPlayback(error)) {
+          scheduleRetry();
+          return;
+        }
+        lastIsPlaying = false;
+        updateMediaSession();
+        refreshNotification();
+        MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "error");
+      }
+    });
+    return player;
+  }
+
   private void startPreparedPlayer() {
-    if (mediaPlayer == null || !isPrepared) return;
+    if (exoPlayer == null) return;
     try {
       requestAudioFocus();
-      mediaPlayer.start();
+      exoPlayer.setPlayWhenReady(true);
+      exoPlayer.play();
       lastIsPlaying = true;
+      playWhenPrepared = true;
+      acquireWakeLock();
+      acquireWifiLock();
       startProgressUpdates();
     } catch (Exception e) {
       lastIsPlaying = false;
@@ -484,12 +595,19 @@ public class SonoraAudioService extends Service {
 
   private void pauseNativePlayback(boolean notifyJs) {
     playWhenPrepared = false;
-    if (mediaPlayer != null && isPrepared) {
-      try { if (mediaPlayer.isPlaying()) mediaPlayer.pause(); } catch (Exception ignored) {}
+    if (handler != null) handler.removeCallbacks(retryRunnable);
+    if (exoPlayer != null) {
+      try {
+        exoPlayer.setPlayWhenReady(false);
+        exoPlayer.pause();
+      } catch (Exception ignored) {}
     }
     syncPlayerPosition();
     lastIsPlaying = false;
     stopProgressUpdates();
+    releaseWakeLock();
+    releaseWifiLock();
+    abandonAudioFocus();
     updateMediaSession();
     refreshNotification();
     if (notifyJs) MainActivity.dispatchNativeState(false, lastPositionMs, lastDurationMs, "pause");
@@ -509,7 +627,7 @@ public class SonoraAudioService extends Service {
     switch (action) {
       case "play":
         playWhenPrepared = true;
-        if (isPrepared) startPreparedPlayer();
+        if (exoPlayer != null) startPreparedPlayer();
         updateMediaSession();
         refreshNotification();
         MainActivity.dispatchNativeState(lastIsPlaying, lastPositionMs, lastDurationMs, "play");
@@ -518,9 +636,9 @@ public class SonoraAudioService extends Service {
         pauseNativePlayback(true);
         break;
       case "seek":
-        if (mediaPlayer != null && isPrepared) {
+        if (exoPlayer != null) {
           try {
-            mediaPlayer.seekTo((int) Math.max(0, positionMs));
+            exoPlayer.seekTo(Math.max(0, positionMs));
             lastPositionMs = Math.max(0, positionMs);
           } catch (Exception ignored) {}
         }
@@ -550,22 +668,71 @@ public class SonoraAudioService extends Service {
 
   private void releaseNativePlayer() {
     stopProgressUpdates();
-    if (mediaPlayer != null) {
-      try { mediaPlayer.reset(); } catch (Exception ignored) {}
-      try { mediaPlayer.release(); } catch (Exception ignored) {}
-      mediaPlayer = null;
+    if (handler != null) handler.removeCallbacks(retryRunnable);
+    if (exoPlayer != null) {
+      try { exoPlayer.release(); } catch (Exception ignored) {}
+      exoPlayer = null;
     }
     isPrepared = false;
   }
 
   private void syncPlayerPosition() {
-    if (mediaPlayer == null || !isPrepared) return;
+    if (exoPlayer == null) return;
     try {
-      lastPositionMs = Math.max(0, mediaPlayer.getCurrentPosition());
-      int d = mediaPlayer.getDuration();
-      if (d > 0) lastDurationMs = d;
-      lastIsPlaying = mediaPlayer.isPlaying();
+      long pos = exoPlayer.getCurrentPosition();
+      long d = exoPlayer.getDuration();
+      if (pos != C.TIME_UNSET) lastPositionMs = Math.max(0, pos);
+      if (d != C.TIME_UNSET && d > 0) lastDurationMs = d;
+      boolean isBufferingToResume = exoPlayer.getPlaybackState() == Player.STATE_BUFFERING && playWhenPrepared;
+      lastIsPlaying = exoPlayer.isPlaying() || isBufferingToResume;
     } catch (Exception ignored) {}
+  }
+
+  private boolean shouldRetryPlayback(PlaybackException error) {
+    if (retryAttempt >= MAX_RETRY_ATTEMPTS) return false;
+    if (lastStreamUrl == null || lastStreamUrl.length() == 0) return false;
+    int code = error == null ? PlaybackException.ERROR_CODE_UNSPECIFIED : error.errorCode;
+    return code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+      || code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+      || code == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+      || code == PlaybackException.ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED
+      || code == PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE
+      || code == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
+      || code == PlaybackException.ERROR_CODE_REMOTE_ERROR
+      || code == PlaybackException.ERROR_CODE_UNSPECIFIED;
+  }
+
+  private void scheduleRetry() {
+    if (handler == null) return;
+    handler.removeCallbacks(retryRunnable);
+    long delay = RETRY_DELAYS_MS[Math.min(retryAttempt, RETRY_DELAYS_MS.length - 1)];
+    retryAttempt += 1;
+    lastIsPlaying = true;
+    updateMediaSession();
+    refreshNotification();
+    MainActivity.dispatchNativeState(true, lastPositionMs, lastDurationMs, "buffering");
+    handler.postDelayed(retryRunnable, delay);
+  }
+
+  private void retryPlaybackFromLastPosition() {
+    if (!playWhenPrepared || lastStreamUrl == null || lastStreamUrl.length() == 0) return;
+    long resumePosition = Math.max(0, lastPositionMs);
+    releaseNativePlayer();
+    lastPositionMs = resumePosition;
+    isPrepared = false;
+    requestAudioFocus();
+    acquireWakeLock();
+    acquireWifiLock();
+    try {
+      exoPlayer = buildExoPlayer();
+      exoPlayer.setMediaItem(MediaItem.fromUri(lastStreamUrl));
+      if (resumePosition > 0) exoPlayer.seekTo(resumePosition);
+      exoPlayer.setPlayWhenReady(true);
+      exoPlayer.prepare();
+      startProgressUpdates();
+    } catch (Exception e) {
+      scheduleRetry();
+    }
   }
 
   private void startProgressUpdates() {
@@ -589,14 +756,39 @@ public class SonoraAudioService extends Service {
     AudioManager manager = (AudioManager) getSystemService(AUDIO_SERVICE);
     if (manager == null) return;
     try {
-      manager.requestAudioFocus(audioFocusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (audioFocusRequest == null) {
+          audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setOnAudioFocusChangeListener(audioFocusListener)
+            .setWillPauseWhenDucked(false)
+            .setAudioAttributes(new android.media.AudioAttributes.Builder()
+              .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+              .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+              .build())
+            .build();
+        }
+        manager.requestAudioFocus(audioFocusRequest);
+      } else {
+        manager.requestAudioFocus(audioFocusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+      }
     } catch (Exception ignored) {}
   }
 
   private void abandonAudioFocus() {
     AudioManager manager = (AudioManager) getSystemService(AUDIO_SERVICE);
     if (manager == null) return;
-    try { manager.abandonAudioFocus(audioFocusListener); } catch (Exception ignored) {}
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
+        manager.abandonAudioFocusRequest(audioFocusRequest);
+      } else {
+        manager.abandonAudioFocus(audioFocusListener);
+      }
+    } catch (Exception ignored) {}
+  }
+
+  private void setPlayerVolume(float volume) {
+    if (exoPlayer == null) return;
+    try { exoPlayer.setVolume(volume); } catch (Exception ignored) {}
   }
 
   // ---------------------------------------------------------------- Wakelock
