@@ -35,6 +35,7 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.DefaultLoadControl;
@@ -56,6 +57,7 @@ import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
  *    via MainActivity.dispatchMediaAction().
  *
  */
+@UnstableApi
 public class SonoraAudioService extends Service {
   public static final String ACTION_START = "app.sonora.personal.audio.START";
   public static final String ACTION_STOP = "app.sonora.personal.audio.STOP";
@@ -505,6 +507,7 @@ public class SonoraAudioService extends Service {
     ExoPlayer player = new ExoPlayer.Builder(this)
       .setMediaSourceFactory(mediaSourceFactory)
       .setLoadControl(loadControl)
+      .setWakeMode(C.WAKE_MODE_LOCAL)
       .build();
 
     player.setAudioAttributes(new AudioAttributes.Builder()
@@ -512,7 +515,6 @@ public class SonoraAudioService extends Service {
       .setUsage(C.USAGE_MEDIA)
       .build(), false);
     player.setHandleAudioBecomingNoisy(true);
-    player.setWakeMode(C.WAKE_MODE_LOCAL);
     player.setVolume(1f);
     player.addListener(new Player.Listener() {
       @Override public void onPlaybackStateChanged(int state) {
