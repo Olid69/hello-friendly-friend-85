@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Home, Search, Library, User, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
+import { haptic } from "@/lib/haptics";
 
 const items = [
   { to: "/", label: "Home", icon: Home },
@@ -27,8 +28,9 @@ export function MobileNav() {
           <Link
             key={item.to}
             to={item.to}
+            onClick={() => haptic("selection")}
             className={cn(
-              "relative flex flex-1 flex-col items-center gap-1 py-1 text-[10px] font-medium transition-colors",
+              "relative flex flex-1 flex-col items-center gap-1 py-1 text-[10px] font-medium transition-colors active:scale-[0.94]",
               active ? "text-on-secondary-container" : "text-muted-foreground",
             )}
           >
