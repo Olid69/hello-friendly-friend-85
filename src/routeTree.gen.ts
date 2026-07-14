@@ -9,11 +9,13 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as RecentRouteImport } from './routes/recent'
 import { Route as QueueRouteImport } from './routes/queue'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PlaylistsRouteImport } from './routes/playlists'
 import { Route as PlayerRouteImport } from './routes/player'
 import { Route as LyricsRouteImport } from './routes/lyrics'
@@ -28,6 +30,11 @@ import { Route as PlaylistsIdRouteImport } from './routes/playlists.$id'
 import { Route as ApiPublicYoutubeAudioRouteImport } from './routes/api/public/youtube-audio'
 import { Route as ApiPublicProxyRouteImport } from './routes/api/public/proxy'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -51,6 +58,11 @@ const QueueRoute = QueueRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlaylistsRoute = PlaylistsRouteImport.update({
@@ -130,11 +142,13 @@ export interface FileRoutesByFullPath {
   '/lyrics': typeof LyricsRoute
   '/player': typeof PlayerRoute
   '/playlists': typeof PlaylistsRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/queue': typeof QueueRoute
   '/recent': typeof RecentRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/terms': typeof TermsRoute
   '/playlists/$id': typeof PlaylistsIdRoute
   '/api/public/proxy': typeof ApiPublicProxyRoute
   '/api/public/youtube-audio': typeof ApiPublicYoutubeAudioRoute
@@ -150,11 +164,13 @@ export interface FileRoutesByTo {
   '/lyrics': typeof LyricsRoute
   '/player': typeof PlayerRoute
   '/playlists': typeof PlaylistsRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/queue': typeof QueueRoute
   '/recent': typeof RecentRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/terms': typeof TermsRoute
   '/playlists/$id': typeof PlaylistsIdRoute
   '/api/public/proxy': typeof ApiPublicProxyRoute
   '/api/public/youtube-audio': typeof ApiPublicYoutubeAudioRoute
@@ -171,11 +187,13 @@ export interface FileRoutesById {
   '/lyrics': typeof LyricsRoute
   '/player': typeof PlayerRoute
   '/playlists': typeof PlaylistsRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/queue': typeof QueueRoute
   '/recent': typeof RecentRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/terms': typeof TermsRoute
   '/playlists/$id': typeof PlaylistsIdRoute
   '/api/public/proxy': typeof ApiPublicProxyRoute
   '/api/public/youtube-audio': typeof ApiPublicYoutubeAudioRoute
@@ -193,11 +211,13 @@ export interface FileRouteTypes {
     | '/lyrics'
     | '/player'
     | '/playlists'
+    | '/privacy'
     | '/profile'
     | '/queue'
     | '/recent'
     | '/search'
     | '/settings'
+    | '/terms'
     | '/playlists/$id'
     | '/api/public/proxy'
     | '/api/public/youtube-audio'
@@ -213,11 +233,13 @@ export interface FileRouteTypes {
     | '/lyrics'
     | '/player'
     | '/playlists'
+    | '/privacy'
     | '/profile'
     | '/queue'
     | '/recent'
     | '/search'
     | '/settings'
+    | '/terms'
     | '/playlists/$id'
     | '/api/public/proxy'
     | '/api/public/youtube-audio'
@@ -233,11 +255,13 @@ export interface FileRouteTypes {
     | '/lyrics'
     | '/player'
     | '/playlists'
+    | '/privacy'
     | '/profile'
     | '/queue'
     | '/recent'
     | '/search'
     | '/settings'
+    | '/terms'
     | '/playlists/$id'
     | '/api/public/proxy'
     | '/api/public/youtube-audio'
@@ -254,17 +278,26 @@ export interface RootRouteChildren {
   LyricsRoute: typeof LyricsRoute
   PlayerRoute: typeof PlayerRoute
   PlaylistsRoute: typeof PlaylistsRouteWithChildren
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   QueueRoute: typeof QueueRoute
   RecentRoute: typeof RecentRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
+  TermsRoute: typeof TermsRoute
   ApiPublicProxyRoute: typeof ApiPublicProxyRoute
   ApiPublicYoutubeAudioRoute: typeof ApiPublicYoutubeAudioRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -298,6 +331,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/playlists': {
@@ -417,11 +457,13 @@ const rootRouteChildren: RootRouteChildren = {
   LyricsRoute: LyricsRoute,
   PlayerRoute: PlayerRoute,
   PlaylistsRoute: PlaylistsRouteWithChildren,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   QueueRoute: QueueRoute,
   RecentRoute: RecentRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
+  TermsRoute: TermsRoute,
   ApiPublicProxyRoute: ApiPublicProxyRoute,
   ApiPublicYoutubeAudioRoute: ApiPublicYoutubeAudioRoute,
 }

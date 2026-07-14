@@ -15,6 +15,8 @@ import { AppLayout } from "../components/app-layout";
 import { PlayerProvider } from "../lib/player-context";
 import { Toaster } from "../components/ui/sonner";
 import { AuthProvider } from "../lib/auth-context";
+import { I18nProvider } from "../lib/i18n";
+import { OfflineBanner } from "../components/offline-banner";
 import { supabase } from "../integrations/supabase/client";
 import { cleanOAuthParamsFromCurrentUrl, completeOAuthSessionFromUrl, hasOAuthParams } from "../lib/oauth-session";
 
@@ -168,14 +170,17 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <PlayerProvider>
-          <AppLayout>
-            <Outlet />
-          </AppLayout>
-          <Toaster />
-        </PlayerProvider>
-      </AuthProvider>
+      <I18nProvider>
+        <AuthProvider>
+          <PlayerProvider>
+            <AppLayout>
+              <Outlet />
+            </AppLayout>
+            <OfflineBanner />
+            <Toaster />
+          </PlayerProvider>
+        </AuthProvider>
+      </I18nProvider>
     </QueryClientProvider>
   );
 }
