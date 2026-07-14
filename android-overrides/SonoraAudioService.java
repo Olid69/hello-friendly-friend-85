@@ -500,7 +500,7 @@ public class SonoraAudioService extends Service {
       .build();
 
     DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(dataSourceFactory)
-      .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(60000));
+      .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(8));
 
     ExoPlayer player = new ExoPlayer.Builder(this)
       .setMediaSourceFactory(mediaSourceFactory)
