@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
  */
 
 export type SeedName =
+  | "red"
   | "green"
   | "blue"
   | "purple"
@@ -16,6 +17,7 @@ export type SeedName =
   | "violet";
 
 export const SEEDS: { name: SeedName; label: string; hue: number; chroma: number; swatch: string }[] = [
+  { name: "red",    label: "Crimson", hue: 15,  chroma: 0.22, swatch: "oklch(0.62 0.22 15)"  },
   { name: "green",  label: "Emerald", hue: 148, chroma: 0.19, swatch: "oklch(0.78 0.19 148)" },
   { name: "blue",   label: "Ocean",   hue: 235, chroma: 0.17, swatch: "oklch(0.72 0.17 235)" },
   { name: "purple", label: "Amethyst",hue: 295, chroma: 0.18, swatch: "oklch(0.72 0.18 295)" },
