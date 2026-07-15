@@ -142,8 +142,8 @@ export function PlayerBar() {
         </div>
 
         {/* Controls */}
-        <div className="flex flex-1 flex-col items-center gap-1">
-          <div className="flex items-center gap-1 md:gap-3">
+        <div className="flex shrink-0 flex-col items-center gap-1 md:flex-1">
+          <div className="flex items-center gap-0.5 md:gap-3">
             <button
               onClick={toggleShuffle}
               className={cn(
