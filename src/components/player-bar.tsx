@@ -17,8 +17,8 @@ import { Link } from "@tanstack/react-router";
 import { usePlayer } from "@/lib/player-context";
 import { useLiked } from "@/lib/library-store";
 import { Slider } from "@/components/ui/slider";
-import { cn } from "@/lib/utils";
-import { useNavigate } from "@tanstack/react-router";
+import { cn, hiResArtwork } from "@/lib/utils";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { haptic } from "@/lib/haptics";
 
 function fmt(sec: number) {
