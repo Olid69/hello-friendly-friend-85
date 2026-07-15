@@ -14,6 +14,8 @@ const items = [
 
 export function MobileNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  if (pathname === "/player") return null;
+
 
   return (
     <nav
