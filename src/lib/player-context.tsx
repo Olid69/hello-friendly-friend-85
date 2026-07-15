@@ -127,38 +127,43 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [playRequestId, setPlayRequestId] = useState(0);
   const [playbackEngine, setPlaybackEngine] = useState<PlaybackEngine>(null);
   const [restoredProgress, setRestoredProgress] = useState<number | null>(null);
-  const hasRestoredRef = useRef(false);
+  const [hasRestored, setHasRestored] = useState(false);
 
   // Restore last session (current + queue + modes + position) on mount.
   useEffect(() => {
-    if (typeof window === "undefined" || hasRestoredRef.current) return;
-    hasRestoredRef.current = true;
+    if (typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem("sonora.player.session");
-      if (!raw) return;
-      const s = JSON.parse(raw) as {
-        current?: UnifiedTrack | null;
-        queue?: UnifiedTrack[];
-        shuffle?: boolean;
-        repeat?: RepeatMode;
-        progress?: number;
-        volume?: number;
-      };
-      if (s.queue?.length) setQueue(s.queue);
-      if (typeof s.shuffle === "boolean") setShuffle(s.shuffle);
-      if (s.repeat) setRepeat(s.repeat);
-      if (typeof s.volume === "number") setVolumeState(s.volume);
-      if (s.current) {
-        setRestoredProgress(s.progress ?? 0);
-        // Load metadata but don't auto-play (browser autoplay policy).
-        setCurrent(s.current);
+      if (raw) {
+        const s = JSON.parse(raw) as {
+          current?: UnifiedTrack | null;
+          queue?: UnifiedTrack[];
+          shuffle?: boolean;
+          repeat?: RepeatMode;
+          progress?: number;
+          volume?: number;
+        };
+        if (s.queue?.length) setQueue(s.queue);
+        if (typeof s.shuffle === "boolean") setShuffle(s.shuffle);
+        if (s.repeat) setRepeat(s.repeat);
+        if (typeof s.volume === "number") setVolumeState(s.volume);
+        if (s.current) {
+          setRestoredProgress(s.progress ?? 0);
+          // Load metadata but don't auto-play (browser autoplay policy).
+          setCurrent(s.current);
+        }
       }
     } catch {}
+    // Mark restore complete AFTER state updates queued — persist effect
+    // will only run in a subsequent render where restored state is applied.
+    setHasRestored(true);
   }, []);
 
-  // Persist session whenever key state changes.
+  // Persist session whenever key state changes (only after restore completes).
   useEffect(() => {
-    if (typeof window === "undefined" || !hasRestoredRef.current) return;
+    if (typeof window === "undefined" || !hasRestored) return;
+    // Avoid wiping a valid saved session with an empty state.
+    if (!current && queue.length === 0) return;
     try {
       window.localStorage.setItem(
         "sonora.player.session",
@@ -172,7 +177,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }),
       );
     } catch {}
-  }, [current, queue, shuffle, repeat, progress, volume]);
+  }, [hasRestored, current, queue, shuffle, repeat, progress, volume]);
 
 
   useEffect(() => {
