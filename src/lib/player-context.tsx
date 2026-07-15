@@ -181,10 +181,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Persist session whenever key state changes (only after restore completes).
+  // NOTE: `progress` is intentionally excluded from the dep array — otherwise
+  // this would fire ~1x/sec while playing and stringify the full queue,
+  // causing visible playback jank on mobile. Progress is persisted separately
+  // on a low-frequency interval below.
+  const progressRef = useRef(0);
+  useEffect(() => { progressRef.current = progress; }, [progress]);
+
   useEffect(() => {
     if (typeof window === "undefined" || !hasRestored) return;
-    // Never overwrite a saved session with an empty state — protects the
-    // "last played" restore against transient nulls during navigation.
     if (!current && queue.length === 0) return;
     try {
       window.localStorage.setItem(
@@ -194,12 +199,28 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           queue,
           shuffle,
           repeat,
-          progress,
+          progress: progressRef.current,
           volume,
         }),
       );
     } catch {}
-  }, [hasRestored, current, queue, shuffle, repeat, progress, volume]);
+  }, [hasRestored, current, queue, shuffle, repeat, volume]);
+
+  // Low-frequency progress persistence (every 5s) — patches only the progress
+  // field into the existing session blob so restore-on-reopen still works.
+  useEffect(() => {
+    if (typeof window === "undefined" || !hasRestored) return;
+    const timer = window.setInterval(() => {
+      try {
+        const raw = window.localStorage.getItem("sonora.player.session");
+        if (!raw) return;
+        const s = JSON.parse(raw);
+        s.progress = progressRef.current;
+        window.localStorage.setItem("sonora.player.session", JSON.stringify(s));
+      } catch {}
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [hasRestored]);
 
 
   useEffect(() => {
