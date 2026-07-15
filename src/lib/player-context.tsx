@@ -130,8 +130,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [hasRestored, setHasRestored] = useState(false);
 
   // Restore last session (current + queue + modes + position) on mount.
+  // Falls back to sonora.recent[0] so the mini-player always shows the last
+  // played track after reopen, even if the session blob was cleared.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let restoredCurrent: UnifiedTrack | null = null;
+    let restoredQueue: UnifiedTrack[] = [];
     try {
       const raw = window.localStorage.getItem("sonora.player.session");
       if (raw) {
@@ -143,17 +147,34 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           progress?: number;
           volume?: number;
         };
-        if (s.queue?.length) setQueue(s.queue);
+        if (s.queue?.length) restoredQueue = s.queue;
         if (typeof s.shuffle === "boolean") setShuffle(s.shuffle);
         if (s.repeat) setRepeat(s.repeat);
         if (typeof s.volume === "number") setVolumeState(s.volume);
         if (s.current) {
+          restoredCurrent = s.current;
           setRestoredProgress(s.progress ?? 0);
-          // Load metadata but don't auto-play (browser autoplay policy).
-          setCurrent(s.current);
         }
       }
     } catch {}
+
+    // Fallback: use most recent play if session had no current track.
+    if (!restoredCurrent) {
+      try {
+        const rawRecent = window.localStorage.getItem("sonora.recent");
+        if (rawRecent) {
+          const recent = JSON.parse(rawRecent) as UnifiedTrack[];
+          if (recent?.length) {
+            restoredCurrent = recent[0];
+            if (!restoredQueue.length) restoredQueue = [recent[0]];
+            setRestoredProgress(0);
+          }
+        }
+      } catch {}
+    }
+
+    if (restoredQueue.length) setQueue(restoredQueue);
+    if (restoredCurrent) setCurrent(restoredCurrent);
     // Mark restore complete AFTER state updates queued — persist effect
     // will only run in a subsequent render where restored state is applied.
     setHasRestored(true);
@@ -162,7 +183,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // Persist session whenever key state changes (only after restore completes).
   useEffect(() => {
     if (typeof window === "undefined" || !hasRestored) return;
-    // Avoid wiping a valid saved session with an empty state.
+    // Never overwrite a saved session with an empty state — protects the
+    // "last played" restore against transient nulls during navigation.
     if (!current && queue.length === 0) return;
     try {
       window.localStorage.setItem(
