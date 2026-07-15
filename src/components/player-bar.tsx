@@ -66,9 +66,17 @@ export function PlayerBar() {
   const pct = duration > 0 ? (progress / duration) * 100 : 0;
 
   if (pathname === "/player") return null;
+  // Hide mini bar entirely on mobile when nothing is playing — desktop keeps
+  // the empty state so users still see the volume/controls affordance.
+  const hideOnMobile = !current;
 
   return (
-    <footer className="glass-player fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 z-30 text-player-foreground shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)]">
+    <footer
+      className={cn(
+        "glass-player fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 z-30 text-player-foreground shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)]",
+        hideOnMobile && "hidden md:block",
+      )}
+    >
       {/* Slim always-visible progress track (mobile) */}
       <div className="md:hidden absolute top-0 left-0 right-0 h-[3px] bg-outline-variant/30">
         <div
@@ -77,7 +85,7 @@ export function PlayerBar() {
         />
       </div>
 
-      <div className="flex items-center gap-3 px-3 py-2 md:px-5 md:py-3">
+      <div className="flex items-center gap-2 px-3 py-2 md:gap-3 md:px-5 md:py-3">
         {/* Track info */}
         <div
           onClick={openFullPlayer}
@@ -134,8 +142,8 @@ export function PlayerBar() {
         </div>
 
         {/* Controls */}
-        <div className="flex flex-1 flex-col items-center gap-1">
-          <div className="flex items-center gap-1 md:gap-3">
+        <div className="flex shrink-0 flex-col items-center gap-1 md:flex-1">
+          <div className="flex items-center gap-0.5 md:gap-3">
             <button
               onClick={toggleShuffle}
               className={cn(
