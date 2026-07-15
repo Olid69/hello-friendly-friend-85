@@ -17,8 +17,8 @@ import { Link } from "@tanstack/react-router";
 import { usePlayer } from "@/lib/player-context";
 import { useLiked } from "@/lib/library-store";
 import { Slider } from "@/components/ui/slider";
-import { cn } from "@/lib/utils";
-import { useNavigate } from "@tanstack/react-router";
+import { cn, hiResArtwork } from "@/lib/utils";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { haptic } from "@/lib/haptics";
 
 function fmt(sec: number) {
@@ -58,11 +58,14 @@ export function PlayerBar() {
 
   const RepeatIcon = repeat === "one" ? Repeat1 : Repeat;
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const openFullPlayer = () => {
     if (current) navigate({ to: "/player" });
   };
 
   const pct = duration > 0 ? (progress / duration) * 100 : 0;
+
+  if (pathname === "/player") return null;
 
   return (
     <footer className="glass-player fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 z-30 text-player-foreground shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)]">
@@ -79,17 +82,22 @@ export function PlayerBar() {
         <div
           onClick={openFullPlayer}
           role={current ? "button" : undefined}
+          tabIndex={current ? 0 : undefined}
           className={cn(
             "md-interactive flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-1.5 py-1 md:w-72 md:flex-none md:px-2",
-            current && "cursor-pointer",
+            current && "cursor-pointer active:scale-[0.98]",
           )}
         >
           <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-surface-container">
             {current?.artwork ? (
               <img
-                src={current.artwork}
+                src={hiResArtwork(current.artwork)}
                 alt=""
                 className="h-full w-full object-cover"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (current?.artwork && img.src !== current.artwork) img.src = current.artwork;
+                }}
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-muted-foreground">
