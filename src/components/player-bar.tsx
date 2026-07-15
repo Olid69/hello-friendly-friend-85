@@ -66,6 +66,9 @@ export function PlayerBar() {
   const pct = duration > 0 ? (progress / duration) * 100 : 0;
 
   if (pathname === "/player") return null;
+  // Hide mini bar entirely on mobile when nothing is playing — desktop keeps
+  // the empty state so users still see the volume/controls affordance.
+  const hideOnMobile = !current;
 
   return (
     <footer className="glass-player fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 z-30 text-player-foreground shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.55)]">
