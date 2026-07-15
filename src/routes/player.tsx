@@ -103,16 +103,10 @@ function PlayerPage() {
                   loading="eager"
                   decoding="async"
                   className={cn(
-                    "h-full w-full object-cover transition-transform duration-700",
-                    isPlaying ? "scale-105" : "scale-100",
+                    "h-full w-full object-cover transition-transform duration-500 ease-out will-change-transform",
+                    isPlaying ? "scale-[1.02]" : "scale-100",
                   )}
-                  style={
-                    isPlaying
-                      ? { animation: "sonora-spin 24s linear infinite" }
-                      : undefined
-                  }
                   onError={(e) => {
-                    // Fallback to original if maxres missing
                     const img = e.currentTarget;
                     if (current?.artwork && img.src !== current.artwork) {
                       img.src = current.artwork;
@@ -126,7 +120,6 @@ function PlayerPage() {
               )}
             </div>
           </div>
-          <style>{`@keyframes sonora-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
 
           {/* Title / Artist */}
           <div className="mt-6 flex items-start justify-between gap-3 px-1">
